@@ -1,6 +1,6 @@
 ---
 name: update-docs
-description: Use when the user asks to "update docs", "update documentation", "sync docs", "update the readme", "update CLAUDE.md", mentions docs are outdated, or asks to document the codebase.
+description: Scans the codebase and updates all documentation files. Use when the user asks to "update docs", "update documentation", "sync docs", "update the readme", or mentions docs are outdated.
 allowed-tools: Read Write Edit Glob Grep
 effort: high
 ---
