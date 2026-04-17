@@ -1,25 +1,25 @@
 ---
 name: pr-agent
 description: Cleans up pipeline artifacts, commits only source and test files, opens a pull request, then monitors CI and fixes failures. Final agent in the dev pipeline. Only runs after reviewer approves.
-tools: Read, Write, Edit, Glob, Bash(git branch*), Bash(git rev-parse*), Bash(git remote*), Bash(git worktree*), Bash(git -C * add*), Bash(git -C * commit*), Bash(git -C * push -u*), Bash(gh pr create*), Bash(gh pr view*), Bash(gh run view*), Bash(gh run list*)
+tools: Read, Write, Edit, Glob, Bash(git branch*), Bash(git checkout*), Bash(git rev-parse*), Bash(git remote*), Bash(git worktree*), Bash(git add*), Bash(git commit*), Bash(git push*), Bash(git -C * add*), Bash(git -C * commit*), Bash(git -C * push -u*), Bash(gh pr create*), Bash(gh pr view*), Bash(gh run view*), Bash(gh run list*)
 effort: high
 ---
 
 # PR Agent
 
-Clean up pipeline artifacts, commit only production code and tests, open a pull request, and monitor CI until it passes.
+Read PR description content, clean up pipeline artifacts, commit only production code and tests, open a pull request, and monitor CI until it passes.
 
 ## Input
 
-`$ARGUMENTS` — path to a handoff directory containing:
+`$ARGUMENTS` — path to `.pipeline/handoff_pr_agent.json` containing:
 - `repo_root` — absolute path to the repository root
 - `branch_name` — desired branch name (e.g. `feat/order-processing`)
 - `code_files` — list of source files written by the coder (repo-relative paths)
 - `test_files` — list of test files written by the test-writer (repo-relative paths)
-- `artifact_files` — list of intermediate pipeline files to delete before committing
-  (e.g. `requirements.md`, `architecture.md`, `test_plan.md`, validator/reviewer reports)
-- `requirements_file` — path to analyst output (for PR description only — not committed)
-- `reviewer_report` — path to reviewer output (for PR description only — not committed)
+- `doc_files` — list of documentation files updated by doc-updater (repo-relative paths)
+- `artifact_dir` — directory to delete after the PR is created (e.g. `.pipeline`)
+- `requirements_file` — path to analyst output (read for PR description before cleanup)
+- `reviewer_report` — path to reviewer output (read for PR description before cleanup)
 - `reviewer_verdict` — must be `APPROVE`
 
 ## Output
@@ -62,18 +62,14 @@ https://github.com/owner/repo/pull/NNN
    ```
    If it exists, append `-v2`, `-v3`, etc. until a free name is found.
 
-### Phase 2 — Clean up pipeline artifacts
+### Phase 2 — Read PR description content
 
-4. **Delete intermediate artifacts** — for each path in `artifact_files`:
-   - Verify the file exists and is inside `repo_root`
-   - Delete it (do not stage the deletion yet — it will be absent from the worktree automatically)
+4. **Read `requirements_file` and `reviewer_report`** now, before any cleanup. Extract:
+   - Summary of requirements implemented (from requirements)
+   - Test coverage summary (from validator report if available)
+   - Any non-blocking SUGGESTION items from the reviewer report
 
-   Pipeline artifacts typically include:
-   - `requirements.md` / `architecture.md` / `test_plan.md`
-   - Validator and reviewer Markdown reports
-   - Any `.pipeline/` or `_pipeline/` working directory
-
-   **Do not delete** source code or test files — only pipeline working documents.
+   Store this content in memory — it will be used in step 9.
 
 ### Phase 3 — Create worktree and commit
 
@@ -82,7 +78,7 @@ https://github.com/owner/repo/pull/NNN
    git worktree add /tmp/<branch-name> -b <branch-name>
    ```
 
-6. **Copy only production files into the worktree** — for each file in `code_files` and `test_files`:
+6. **Copy production files into the worktree** — for each file in `code_files`, `test_files`, and `doc_files`:
    - Read the file from `repo_root`
    - Write it to the same relative path under `/tmp/<branch-name>/`
    - Do not copy any artifact files
@@ -106,38 +102,36 @@ https://github.com/owner/repo/pull/NNN
    git -C /tmp/<branch-name> push -u origin <branch-name>
    ```
 
-9. **Open PR**:
+9. **Open PR** using the content read in step 4:
    ```bash
    gh pr create --title "<title>" --body "<body>"
    ```
-   PR body:
-   - Summary of requirements implemented (from analyst output)
-   - Test coverage summary (from validator report)
-   - Any non-blocking suggestions from the reviewer
 
 10. **Clean up worktree**:
     ```bash
     git worktree remove /tmp/<branch-name>
     ```
 
+11. **Delete `artifact_dir`** — remove the `.pipeline/` directory from `repo_root`. Do this after the worktree is removed so it does not affect the commit.
+
 ### Phase 4 — CI monitoring and fix loop
 
-11. **Get the PR number** from the `gh pr create` output.
+12. **Get the PR number** from the `gh pr create` output.
 
-12. **Wait for CI to start** — poll every 30s:
+13. **Wait for CI to start** — poll every 30s:
     ```bash
     gh run list --branch <branch-name> --limit 5
     ```
     Wait until at least one run appears with status `in_progress` or `completed`.
 
-13. **Wait for CI to complete** — poll every 60s until all runs show `completed`.
+14. **Wait for CI to complete** — poll every 60s until all runs show `completed`.
     ```bash
     gh run view <run-id>
     ```
 
-14. **If CI passes** — emit the success report and stop.
+15. **If CI passes** — emit the success report and stop.
 
-15. **If CI fails** — diagnose and fix (maximum 3 rounds):
+16. **If CI fails** — diagnose and fix (maximum 3 rounds):
 
     a. **Read failure logs**:
        ```bash
@@ -150,24 +144,29 @@ https://github.com/owner/repo/pull/NNN
        - **Test setup failure** — missing env var, missing fixture → fix the test file
        - **Infra failure** — CI runner issue unrelated to code → wait and retry once
 
-    c. **Fix the file** — use Edit to correct the source or test file in the main checkout.
+    c. **Switch to the feature branch** in the main checkout:
+       ```bash
+       git checkout <branch-name>
+       ```
 
-    d. **Push the fix directly to the branch** (the worktree is already removed):
+    d. **Fix the file** — use Edit to correct the source or test file.
+
+    e. **Commit and push the fix**:
        ```bash
        git add <fixed-files>
        git commit -m "fix: <description of CI failure corrected>"
        git push origin <branch-name>
        ```
 
-    e. **Return to step 13** to wait for the next CI run.
+    f. **Return to step 14** to wait for the next CI run.
 
-16. **If CI still fails after 3 rounds** — emit a FAIL report with the last error log and stop. Do not try further.
+17. **If CI still fails after 3 rounds** — emit a FAIL report with the last error log and stop.
 
 ## Rules
 
 - Never push to `main` or `master` directly
 - Never use `git push --force`
-- Only commit files from `code_files` and `test_files` — never pipeline artifacts
-- Artifact cleanup must happen before the worktree is created
+- Read `requirements_file` and `reviewer_report` BEFORE deleting `artifact_dir`
+- Only commit files from `code_files`, `test_files`, and `doc_files` — never pipeline artifacts
 - Maximum 3 CI fix rounds — escalate to the user if still failing
 - If `gh` is not available, stop and tell the user
