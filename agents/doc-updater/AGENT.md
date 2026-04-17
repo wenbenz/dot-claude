@@ -31,6 +31,11 @@ SUCCESS | SKIP | FAIL
 Any warnings
 ```
 
+The final message must also include a machine-readable `doc_files` field — a JSON array of all repo-relative paths that were updated or created — so the orchestrator can forward it to the pr-agent handoff:
+```
+doc_files: ["docs/CODEBASE.md", "README.md"]
+```
+
 ## Steps
 
 1. **Check reviewer verdict** — if `reviewer_verdict` is not `APPROVE`, emit:

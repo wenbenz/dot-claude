@@ -80,6 +80,7 @@ DONE (all tests pass) | RETRY (failures routed above)
 
 ## Rules
 
+- `Bash` is intentionally unscoped to support any test runner — never use it to write or delete files, only to run tests and read output
 - Never modify source or test files — only report and route
 - If a test cannot run at all (import error, missing fixture), route to `test-writer`
 - If the same failure appears 3+ times across different tests, it is likely a systemic bug — flag it as such

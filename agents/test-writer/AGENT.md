@@ -18,7 +18,9 @@ Write the actual test code from the test plan. Follow the repo's testing convent
 
 ## Output
 
-A Markdown report listing:
+A structured response containing:
+
+1. A Markdown report:
 ```
 ## Test Files Written
 - path/to/test_file.ext — which test cases it covers (TC-XXX, ...)
@@ -33,6 +35,8 @@ A Markdown report listing:
 ## Notes for Validator
 Anything the validator needs to know to run the tests correctly (env vars, fixtures, setup)
 ```
+
+2. The text under `## Notes for Validator` must also be returned as a distinct `validator_notes` field in the final message so the orchestrator can forward it directly to the validator handoff file. Format it as a plain string, not Markdown.
 
 ## Steps
 

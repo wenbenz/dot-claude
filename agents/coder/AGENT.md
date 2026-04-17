@@ -11,12 +11,12 @@ Write the implementation code based on the architecture design and requirements.
 
 ## Input
 
-`$ARGUMENTS` — path to a handoff file (JSON or Markdown) containing:
+`$ARGUMENTS` — path to a JSON handoff file containing:
 - `requirements_file` — path to analyst output
 - `architecture_file` — path to architect output
 - `repo_root` — absolute path to the repository root
-
-Or pass a directory path and the agent will look for `requirements.md` and `architecture.md` inside it.
+- `failure_details` _(optional)_ — validator failure report from a prior cycle; all listed failures must be addressed before anything else
+- `review_issues` _(optional)_ — blocking issues from the reviewer; fix each one before re-implementing
 
 ## Output
 
@@ -37,7 +37,9 @@ Anything unusual about the implementation that affects how tests should be writt
 
 ## Steps
 
-1. **Read inputs** — load the requirements and architecture documents.
+1. **Read inputs** — load the requirements and architecture documents. Then check for optional fields:
+   - If `failure_details` is present → read it first and treat those failures as the highest-priority fixes. Address every listed failure before writing new code.
+   - If `review_issues` is present → read the blocking issues from the reviewer and treat them as hard constraints. Fix each one.
 
 2. **Read repo conventions** — look for the repo's coding skill:
    - `.claude/skills/how-to-code/SKILL.md` — if it exists, read it and follow it strictly

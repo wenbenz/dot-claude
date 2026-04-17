@@ -57,7 +57,7 @@ If input is malformed or a required file is missing:
 | `architect` | `requirements_file` | — | Architecture Markdown |
 | `coder` | `requirements_file`, `architecture_file`, `repo_root` | Source files | File list |
 | `test-designer` | `requirements_file`, `architecture_file` | `test_plan.md` | Test plan Markdown |
-| `test-writer` | `test_plan_file`, `code_files`, `repo_root` | Test files | File list + notes |
+| `test-writer` | `test_plan_file`, `code_files`, `repo_root` | Test files | File list + `validator_notes` |
 | `validator` | `test_files`, `repo_root`, `validator_notes` | `validator_report.md` | Pass/fail report |
 | `reviewer` | `requirements_file`, `architecture_file`, `code_files`, `test_files`, `validator_report` | `reviewer_report.md` | Verdict + issues |
 | `doc-updater` | `repo_root`, `reviewer_verdict` | Doc files | File list |

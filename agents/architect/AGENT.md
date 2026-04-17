@@ -11,9 +11,8 @@ Design the code structure from requirements — modules, interfaces, data models
 
 ## Input
 
-`$ARGUMENTS` — either:
-- A file path to the requirements Markdown (output of `analyst`)
-- Or the requirements content pasted directly
+`$ARGUMENTS` — path to a JSON handoff file containing:
+- `requirements_file` — path to the analyst's requirements Markdown
 
 ## Output
 

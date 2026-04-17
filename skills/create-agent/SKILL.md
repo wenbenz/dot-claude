@@ -1,79 +1,58 @@
 ---
 name: create-agent
-description: Create a new Claude Code sub-agent from scratch. Use when the user asks to "create an agent", "add a sub-agent", "make an agent", or wants a specialized role in an automation pipeline.
+description: Creates a new Claude Code pipeline agent. Use when the user asks to "create an agent", "add an agent", "make an agent", or wants a specialized role in an automation pipeline.
 allowed-tools: Read Write Glob
-effort: medium
 argument-hint: [agent-name]
 ---
 
 # Create Agent
 
-Create a new Claude Code sub-agent with a custom system prompt, tool restrictions, and configuration.
+Create a new Claude Code agent — an isolated subagent called programmatically by an orchestrator, with a focused single-purpose role.
+
+## Difference: Agent vs Skill
+
+| | Skill | Agent |
+|---|---|---|
+| Invocation | User types `/skill-name` or triggered by context | Called programmatically by an orchestrator |
+| Isolation | Runs in main context by default | Isolated by the runtime (no `context: fork` field needed) |
+| Scope | Broad workflow (e.g. "create a PR") | Single focused role (e.g. "analyze requirements") |
+| Output | Shown to user | Returned to calling agent/skill |
+| User-invocable | Yes | Usually no — set `description:` to control delegation |
 
 ## Steps
 
-1. **Determine the agent name and purpose**
+1. **Determine the agent name and role**
    - If `$ARGUMENTS` is provided, use it as the agent name
-   - Otherwise ask: what should this agent do, and when should Claude delegate to it?
+   - Otherwise ask: what is this agent's single responsibility in the pipeline?
 
-2. **Ask clarifying questions**
-   - **Tools**: restrict with `tools:` (allowlist) or `disallowedTools:` (denylist)? Omit to inherit all tools.
-   - **Model**: `haiku` (fast/cheap), `sonnet` (balanced), `opus` (complex), or `inherit` (default)
-   - **Isolation**: `isolation: worktree` for an isolated git checkout?
-   - **Memory**: `memory: user` (all projects), `project` (shareable via VCS), or `local` (not committed)?
-   - **Background**: `background: true` to always run as a background task?
-   - **Effort**: `low | medium | high | max` (default: inherits from session)
-   - **Permission mode**: `default`, `acceptEdits`, `auto`, `dontAsk`, or `bypassPermissions`
-   - **Pipeline role**: is this part of an automation pipeline (e.g. `dev-pipeline`)? If so, what does it receive as input and what does it return?
+2. **Ask clarifying questions if needed**
+   - What inputs does this agent receive? (e.g. spec doc, code files, test results)
+   - What does it output? (e.g. requirements list, code, test plan)
+   - What tools does it need? (Read, Write, Edit, Glob, Grep, Bash, etc.)
+   - Which pipeline does it belong to? (e.g. dev-pipeline, test-pipeline)
+   - Does it use any repo-provided skills as an interface? (e.g. `how-to-code`, `how-to-test`)
 
 3. **Decide where to place the agent**
 
-   Place in `.claude/agents/` (project-local) if ANY of the following are true:
-   - It references project-specific commands, scripts, or tooling
-   - It encodes conventions specific to this codebase
-   - It would not make sense outside of this project
+   Place in `.claude/agents/` (project-local) if ANY of the following:
+   - It references project-specific tools, commands, or conventions
+   - It delegates to project-local skills (`how-to-code`, `how-to-test`, etc.)
+   - It would not make sense outside this project
 
-   Otherwise place in `~/.claude/agents/` (global — available in all projects).
+   Otherwise place in `~/.claude/agents/` (global).
 
-4. **Write a focused system prompt**
-   - Describe what the agent does, not how Claude Code works
-   - Be specific about expected output format if relevant
-   - If this is a pipeline agent, document: input format, output format, and error behaviour
-   - If `memory:` is set, include instructions for reading and updating the memory directory
+4. **Create the agent files**
+   - Use [template.md](template.md) as the base for `AGENT.md`
+   - See [reference.md](reference.md) for valid frontmatter and conventions
+   - Keep `AGENT.md` under 400 lines — move reference material to separate files
 
-5. **Create the agent file** using this format:
+5. **Confirm** — show the created file(s) and location. Ask if anything needs adjusting.
 
-   ```markdown
-   ---
-   name: agent-name
-   description: When Claude should delegate to this agent — be specific about trigger phrases
-   tools: Read, Glob, Grep        # omit to inherit all tools from the parent session
-   model: sonnet                  # omit to inherit from the parent conversation
-   ---
+## Agent folder structure
 
-   You are a specialized assistant for...
-   ```
-
-6. **Confirm** — show the created file and its location. Remind the user:
-   > Agents are loaded at session start. Run `/agents` or restart the session to make it available immediately.
-
-## Field reference
-
-| Field             | Notes |
-|:------------------|:------|
-| `name`            | Lowercase, hyphens only. Must be unique. |
-| `description`     | When Claude should delegate here — front-load key trigger phrases. |
-| `tools`           | Allowlist. Comma-separated. Omit to inherit all tools. |
-| `disallowedTools` | Denylist. Applied before `tools`. |
-| `model`           | `haiku`, `sonnet`, `opus`, a full model ID, or `inherit`. |
-| `permissionMode`  | `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `plan`. |
-| `maxTurns`        | Max agentic turns before the agent stops. |
-| `skills`          | Skills whose full content is injected at startup (not inherited from parent). |
-| `mcpServers`      | MCP servers scoped to this agent only. |
-| `hooks`           | Lifecycle hooks scoped to this agent. |
-| `memory`          | `user`, `project`, or `local` — enables cross-session learning. |
-| `background`      | `true` to always run as a background task. |
-| `effort`          | `low`, `medium`, `high`, or `max`. |
-| `isolation`       | `worktree` to run in a temporary isolated git checkout. |
-| `color`           | `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink`, `cyan`. |
-| `initialPrompt`   | Auto-submitted as first user turn when agent runs as main session agent. |
+```
+agents/
+└── my-agent/
+    ├── AGENT.md        # Main instructions (required)
+    └── reference.md    # Reference docs loaded when needed
+```
