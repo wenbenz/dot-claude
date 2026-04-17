@@ -11,9 +11,7 @@ argument-hint: [branch-name]
 Create a new branch, make changes in isolation using a git worktree, push the branch, and open a pull request.
 
 ```!
-echo "Current branch: $(git branch --show-current 2>/dev/null || echo '(not a git repo)')"
-echo "Repo root:      $(git rev-parse --show-toplevel 2>/dev/null || echo '(none)')"
-echo "Remote origin:  $(git remote get-url origin 2>/dev/null || echo '(no origin)')"
+git branch --show-current 2>/dev/null && git rev-parse --show-toplevel 2>/dev/null && git remote get-url origin 2>/dev/null
 ```
 
 ## Steps
