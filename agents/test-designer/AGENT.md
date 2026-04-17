@@ -1,9 +1,7 @@
 ---
 name: test-designer
 description: Plans a comprehensive test suite from requirements and architecture — unit, integration, and edge case tests. Does not write test code. Runs in parallel with the coder.
-allowed-tools: Read Glob
-context: fork
-user-invocable: false
+tools: Read, Glob
 effort: medium
 ---
 

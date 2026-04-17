@@ -1,9 +1,7 @@
 ---
 name: test-writer
 description: Writes test code from a test plan and the implemented code files, following repo-specific conventions via the how-to-test skill. Fifth agent in the dev pipeline.
-allowed-tools: Read Write Edit Glob Grep
-context: fork
-user-invocable: false
+tools: Read, Write, Edit, Glob, Grep
 effort: high
 ---
 

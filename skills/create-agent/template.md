@@ -1,11 +1,9 @@
 ---
 name: agent-name
 description: One sentence. What role does this agent play? What does it receive and return?
-allowed-tools: Read Glob Grep
-context: fork
-user-invocable: false
+tools: Read, Glob, Grep
 # effort: low | medium | high | max
-# agent: Explore | Plan | general-purpose
+# model: haiku | sonnet | opus
 ---
 
 # Agent Name

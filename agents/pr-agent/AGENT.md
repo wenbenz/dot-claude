@@ -1,9 +1,7 @@
 ---
 name: pr-agent
 description: Cleans up pipeline artifacts, commits only source and test files, opens a pull request, then monitors CI and fixes failures. Final agent in the dev pipeline. Only runs after reviewer approves.
-allowed-tools: Read Write Edit Glob Bash(git branch*) Bash(git rev-parse*) Bash(git remote*) Bash(git worktree*) Bash(git -C * add*) Bash(git -C * commit*) Bash(git -C * push -u*) Bash(gh pr create*) Bash(gh pr view*) Bash(gh run view*) Bash(gh run list*)
-context: fork
-user-invocable: false
+tools: Read, Write, Edit, Glob, Bash(git branch*), Bash(git rev-parse*), Bash(git remote*), Bash(git worktree*), Bash(git -C * add*), Bash(git -C * commit*), Bash(git -C * push -u*), Bash(gh pr create*), Bash(gh pr view*), Bash(gh run view*), Bash(gh run list*)
 effort: high
 ---
 

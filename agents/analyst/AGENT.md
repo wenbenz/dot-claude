@@ -1,9 +1,7 @@
 ---
 name: analyst
 description: Reads a technical specification document and extracts structured requirements, acceptance criteria, constraints, and edge cases. First agent in the dev pipeline.
-allowed-tools: Read Glob
-context: fork
-user-invocable: false
+tools: Read, Glob
 effort: medium
 ---
 

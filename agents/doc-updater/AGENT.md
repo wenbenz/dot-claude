@@ -1,9 +1,7 @@
 ---
 name: doc-updater
 description: Updates project documentation after code is reviewed and approved, by running the update-docs skill instructions. Runs between reviewer and pr-agent in the dev pipeline.
-allowed-tools: Read Write Edit Glob Grep
-context: fork
-user-invocable: false
+tools: Read, Write, Edit, Glob, Grep
 effort: high
 ---
 

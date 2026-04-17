@@ -1,9 +1,7 @@
 ---
 name: reviewer
 description: Reviews code and tests for correctness, coverage, security, and adherence to repo conventions. Produces an approve/request-changes verdict. Seventh agent in the dev pipeline.
-allowed-tools: Read Glob Grep
-context: fork
-user-invocable: false
+tools: Read, Glob, Grep
 effort: medium
 ---
 

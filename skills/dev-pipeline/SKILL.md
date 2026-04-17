@@ -127,7 +127,7 @@ Call `pr-agent` with:
 - `branch_name`
 - `code_files` — from coder
 - `test_files` — from test-writer
-- `artifact_files` — everything under `.pipeline/` + any updated doc files
+- `artifact_files` — everything under `.pipeline/` (do NOT include doc files — those must be committed)
 - `requirements_file` — `.pipeline/requirements.md`
 - `reviewer_report` — `.pipeline/reviewer_report.md`
 - `reviewer_verdict` — `APPROVE`

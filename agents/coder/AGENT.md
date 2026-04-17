@@ -1,9 +1,7 @@
 ---
 name: coder
 description: Implements code from an architecture design and requirements, following repo-specific conventions via the how-to-code skill. Third agent in the dev pipeline.
-allowed-tools: Read Write Edit Glob Grep
-context: fork
-user-invocable: false
+tools: Read, Write, Edit, Glob, Grep
 effort: high
 ---
 

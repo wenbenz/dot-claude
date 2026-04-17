@@ -1,9 +1,7 @@
 ---
 name: validator
 description: Runs the test suite, analyzes failures, and routes them back to the right agent — coder for bugs, test-writer for bad tests, analyst for ambiguous requirements. Sixth agent in the dev pipeline.
-allowed-tools: Read Glob Bash
-context: fork
-user-invocable: false
+tools: Read, Glob, Bash
 effort: medium
 ---
 

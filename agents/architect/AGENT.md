@@ -1,9 +1,7 @@
 ---
 name: architect
 description: Takes a requirements list and proposes a module structure, interfaces, and data models. Does not write implementation code. Second agent in the dev pipeline.
-allowed-tools: Read Glob Grep
-context: fork
-user-invocable: false
+tools: Read, Glob, Grep
 effort: medium
 ---
 
