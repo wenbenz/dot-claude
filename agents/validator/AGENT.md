@@ -1,7 +1,7 @@
 ---
 name: validator
 description: Runs the test suite, analyzes failures, and routes them back to the right agent — coder for bugs, test-writer for bad tests, analyst for ambiguous requirements. Sixth agent in the dev pipeline.
-tools: Read, Glob, Bash
+tools: Read, Glob, Bash(make *), Bash(go test *), Bash(pytest *), Bash(npm test*), Bash(yarn test*), Bash(pnpm test*), Bash(cargo test *), Bash(ruby *), Bash(python -m pytest *)
 effort: medium
 ---
 
@@ -80,7 +80,7 @@ DONE (all tests pass) | RETRY (failures routed above)
 
 ## Rules
 
-- `Bash` is intentionally unscoped to support any test runner — never use it to write or delete files, only to run tests and read output
+- `Bash` is scoped to test runners only (`make`, `go test`, `pytest`, `npm/yarn/pnpm test`, `cargo test`) — no file writes, deletes, or arbitrary shell commands
 - Never modify source or test files — only report and route
 - If a test cannot run at all (import error, missing fixture), route to `test-writer`
 - If the same failure appears 3+ times across different tests, it is likely a systemic bug — flag it as such
