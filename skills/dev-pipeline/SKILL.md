@@ -58,18 +58,35 @@ Before calling each agent, write a JSON handoff file to `.pipeline/`. The agent 
 ### 0. Setup
 
 1. **Parse arguments**:
-   - `$ARGUMENTS[0]` — path to the spec document (required)
-   - `$ARGUMENTS[1]` — branch name (optional; default: `feat/<spec-filename-without-extension>`)
+   - `$ARGUMENTS[0]` — path to a spec document **or** an inline description (required)
+   - `$ARGUMENTS[1]` — branch name (optional; default derived below)
 
-2. **Verify** the spec file exists and is readable. Stop if not.
+2. **Determine spec source** — two modes:
 
-3. **Create** `.pipeline/` directory at the repo root — all intermediate artifacts go here.
+   **File mode**: `$ARGUMENTS[0]` is a path to an existing file.
+   - Verify the file exists and is readable. Stop if not.
+   - `spec_file` = `$ARGUMENTS[0]`
+   - Default branch name: `feat/<spec-filename-without-extension>`
+
+   **Inline mode**: `$ARGUMENTS[0]` is not an existing file path (treat as a plain-text description).
+   - Also applies when the pipeline is invoked from conversation context (no explicit argument) — use the user's request text as the description.
+   - Write the description to `.pipeline/spec.md` (create `.pipeline/` first).
+   - `spec_file` = `.pipeline/spec.md`
+   - Default branch name: `feat/pipeline-<timestamp>` (e.g. `feat/pipeline-20260417`)
+
+3. **Create a git worktree** for the branch:
+   - Worktree path: `<repo_root>/../pipeline-worktree-<branch-name>`
+   - Run: `git worktree add -b <branch_name> <worktree_path>`
+   - All subsequent file writes (code, tests, docs, `.pipeline/`) happen inside `<worktree_path>`.
+   - Use `<worktree_path>` as `repo_root` in every downstream handoff.
+
+4. **Create** `.pipeline/` directory inside the worktree — all intermediate artifacts go here.
 
 ---
 
 ### 1. Analyst
 
-Call the `analyst` agent with the spec path as a direct argument. Write its output to `.pipeline/requirements.md`.
+Call the `analyst` agent with `spec_file` as its argument. Write its output to `.pipeline/requirements.md`.
 
 **Stop if** the analyst emits an ERROR or lists more than 3 open questions — show the questions to the user and ask for clarification.
 
@@ -178,8 +195,9 @@ Call `doc-updater` with `.pipeline/handoff_doc_updater.json`. Save its list of u
 Write `.pipeline/handoff_pr_agent.json`:
 ```json
 {
-  "repo_root": "<repo_root>",
+  "repo_root": "<worktree_path>",
   "branch_name": "<branch_name>",
+  "worktree_path": "<worktree_path>",
   "code_files": <code_files>,
   "test_files": <test_files>,
   "doc_files": <doc_files>,
@@ -194,13 +212,20 @@ Call `pr-agent` with `.pipeline/handoff_pr_agent.json`. The pr-agent handles: re
 
 Report the PR URL to the user when done.
 
+After the PR is created (or if the pipeline is stopped early due to an error), remove the worktree:
+```
+git worktree remove --force <worktree_path>
+```
+
 ---
 
 ## Error Handling
 
 | Situation | Action |
 |---|---|
-| Spec file not found | Stop immediately, tell the user |
+| File mode: spec file not found | Stop immediately, tell the user |
+| Inline mode: no argument and no conversation context | Stop, ask the user what to build |
+| Worktree creation fails | Stop, tell the user (branch may already exist) |
 | Analyst finds >3 open questions | Stop, show the questions to the user |
 | Validator fails 3 times in a cycle | Stop, show last report to the user |
 | Reviewer requests changes twice | Stop, show review to the user |
