@@ -8,9 +8,9 @@ Whenever making changes inside a git repository, follow these steps before touch
 
 3. **Make all changes inside a worktree** — add the branch as a worktree if needed:
    ```
-   git worktree add /tmp/<branch-name> <branch-name>
+   git worktree add ./.worktree/<branch-name> <branch-name>
    ```
-   Write and edit files under `/tmp/<branch-name>/`, never in the main checkout. Use `git -C /tmp/<branch-name>` for all git operations inside the worktree.
+   Write and edit files under `./.worktree/<branch-name>/`, never in the main checkout. Use `git -C ./.worktree/<branch-name>` for all git operations inside the worktree.
 
 4. **Monitor the PR until merged** — after pushing, watch the PR for review comments or requested changes:
    - Use `gh pr view <number> --json state,reviewDecision,comments` to poll status.
@@ -19,7 +19,7 @@ Whenever making changes inside a git repository, follow these steps before touch
 
 5. **Clean up** — worktrees do not auto-delete; remove only after the PR is merged (or closed):
    ```
-   git worktree remove /tmp/<branch-name>
+   git worktree remove ./.worktree/<branch-name>
    git worktree prune
    ```
 
