@@ -20,20 +20,27 @@ echo "Branch:    $(git branch --show-current 2>/dev/null || echo '(unknown)')"
 ```mermaid
 flowchart TD
     input([spec / ticket URL / inline text])
-    input --> planner["planner\n→ .pipeline/plan.md"]
+    plan[(".pipeline/plan.md")]
+    vreport[(".pipeline/validator_report.md")]
+    rreport[(".pipeline/reviewer_report.md")]
 
-    planner --> coder[coder]
-    planner --> testwriter[test-writer]
+    input --> planner[planner]
+    planner --> plan
 
-    coder --> validator
+    plan --> coder[coder]
+    plan --> testwriter[test-writer]
+
+    coder --> validator[validator]
     testwriter --> validator
+    validator --> vreport
 
-    validator -->|PASS| reviewer
-    validator -->|"FAIL (max 5 rounds)"| coder
-    validator -->|"FAIL (max 5 rounds)"| testwriter
+    vreport -->|"FAIL (max 5 rounds)"| coder
+    vreport -->|"FAIL (max 5 rounds)"| testwriter
+    vreport -->|PASS| reviewer[reviewer]
+    reviewer --> rreport
 
-    reviewer -->|APPROVE| docpatcher[doc-patcher]
-    reviewer -->|"CHANGES (max 1 retry)"| coder
+    rreport -->|APPROVE| docpatcher[doc-patcher]
+    rreport -->|"CHANGES (max 1 retry)"| coder
 
     docpatcher --> pragent[pr-agent]
     pragent --> pr([PR URL])
