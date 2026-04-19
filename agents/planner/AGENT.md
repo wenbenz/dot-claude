@@ -40,20 +40,23 @@ A single Markdown document with two sections:
 
 ## Architecture
 
-### Modules
-List of modules/packages with their single responsibility
+### Layers
+Which layers are needed and what each one owns (transport / service / repository / other)
 
-### Interfaces / Contracts
-Public APIs and function signatures (language-agnostic pseudocode)
+### Modules
+Each module with: single responsibility, which layer it belongs to, and its public interface in pseudocode
 
 ### Data Models
 Key data structures and their fields
 
+### Testability Notes
+For each service/domain module: what must be injectable or mockable, and any design choices made to enable isolated testing
+
 ### Dependencies
-External libraries or services needed, and why
+External libraries or services needed, and why. Flag any that cross layer boundaries.
 
 ### Implementation Order
-Suggested order to implement modules (bottom-up, dependencies first)
+Bottom-up: repositories → services → handlers
 
 ### Notes for Coder
 Anything the coder should know before starting
@@ -89,14 +92,30 @@ Anything the coder should know before starting
 
 4. **Check for existing code** — use Glob/Grep to scan for existing structure in the repo. Align the design with what's already there.
 
-5. **Design architecture** — group requirements by domain into modules. For each module:
+5. **Design architecture** — group requirements by domain into modules. Apply these principles:
+
+   **Layering** — separate concerns into distinct layers. A typical structure:
+   - *Transport / Handler layer*: receives input (HTTP, CLI, events), validates, delegates — no business logic
+   - *Service / Domain layer*: business rules and use cases — no I/O, no framework dependencies
+   - *Repository / Adapter layer*: persistence, external APIs, file system — behind interfaces
+
+   Layers must only depend inward (handlers → services → repositories). Never skip layers.
+
+   **Testability** — design so each layer can be tested in isolation:
+   - Service layer must not depend on concrete I/O — accept interfaces, not implementations
+   - Side effects (DB, HTTP, clock, random) must be injectable or mockable at module boundaries
+   - Avoid global state and singletons
+   - Pure functions preferred over stateful objects where possible
+
+   **Module design** — for each module:
    - Single clear responsibility
    - Explicit public interface in pseudocode
    - Key data types and their fields
+   - Which layer it belongs to
 
-6. **Identify dependencies** — only include what is clearly necessary. Prefer standard library.
+6. **Identify dependencies** — only include what is clearly necessary. Prefer standard library. Flag any dependency that crosses layer boundaries as a risk.
 
-7. **Order implementation** — sort modules so dependencies come first.
+7. **Order implementation** — sort modules bottom-up: repositories first, then services, then handlers.
 
 8. **Emit the output** as a single Markdown block.
 
@@ -106,6 +125,8 @@ Anything the coder should know before starting
 - Do not infer behaviour not stated or clearly implied — flag it as an open question
 - Write interfaces in pseudocode — do not commit to a specific language syntax
 - Do not write function bodies — that is the coder's job
+- Every service/domain module must have at least one mockable boundary — flag it if not achievable
+- Handlers must never contain business logic; services must never do direct I/O
 - If the spec is too short to extract meaningful requirements, say so explicitly
 - Stop if there are more than 3 open questions — emit them and let the orchestrator ask the user
 - Stop if there are more than 3 requirements — emit a suggested breakdown and let the orchestrator ask the user to split the task
