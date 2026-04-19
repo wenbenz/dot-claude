@@ -81,14 +81,12 @@ Before calling each agent, write a JSON handoff file to `<pipeline_dir>/`. The a
    - `spec_file` = `<pipeline_dir>/spec.md`; `spec_content` = null
    - Default branch name: `feat/pipeline-<timestamp>` (e.g. `feat/pipeline-20260417`)
 
-3. **Create a git worktree** for the branch:
-   - Worktree path: `<repo_root>/.worktrees/<branch-name>`
-   - Run: `git worktree add -b <branch_name> <worktree_path>`
+3. **Create a git worktree** for the branch following the worktree-workflow rule (check existing worktrees first, reuse if found). Derive `<worktree_path>` from where the worktree is placed.
    - Use `<worktree_path>` as `repo_root` in every downstream handoff.
 
 4. **Set `pipeline_dir`** = `<worktree_path>/.pipeline` — use this absolute path for every artifact below. This isolates each pipeline run to its own worktree and allows concurrent runs without conflicts.
 
-   Create the directory now. Also ensure `<repo_root>/.worktrees/` exists (create if needed).
+   Create the directory now.
 
 ---
 
