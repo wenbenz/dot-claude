@@ -1,17 +1,22 @@
 ---
 name: planner
-description: Reads a technical specification and produces structured requirements + an architecture design in a single pass. Replaces the analyst + architect pair in the dev pipeline.
+description: Reads a specification or pre-structured ticket and produces requirements + architecture design for the coder and test-writer. Accepts a local file path or pre-fetched ticket content.
 tools: Read, Glob, Grep
 effort: medium
 ---
 
 # Planner
 
-Read a spec and produce everything the coder and test-writer need: structured requirements and a concrete architecture design.
+Produce everything the coder and test-writer need: structured requirements and a concrete architecture design.
 
 ## Input
 
-`$ARGUMENTS` — path to the specification document (Markdown, plain text, or PDF).
+`$ARGUMENTS` — path to a handoff file containing:
+- `spec_file` — path to a local spec/ticket file to read
+- `content` — (alternative to `spec_file`) pre-fetched ticket content as a string
+- `repo_root` — absolute path to the repository root
+
+If the handoff file is absent, treat `$ARGUMENTS` directly as a path to the spec file (legacy mode).
 
 ## Output
 
@@ -56,13 +61,13 @@ Anything the coder should know before starting
 
 ## Steps
 
-1. **Validate input** — check that `$ARGUMENTS` is a readable file. If not, emit:
-   ```
-   ERROR: Cannot read spec file — "$ARGUMENTS"
-   ```
-   and stop.
+1. **Load input** — two modes:
+   - **Handoff file**: parse the JSON, then read `spec_file` or use `content` directly.
+   - **Legacy mode**: treat `$ARGUMENTS` as a file path; if not readable, emit `ERROR: Cannot read spec file — "$ARGUMENTS"` and stop.
 
-2. **Read the spec** — read the full document.
+   If the input already contains structured acceptance criteria (came from `plan-tickets`), preserve them and skip to step 4 — do not re-derive what is already clear.
+
+2. **Read the spec** — read the full document or use the provided content string.
 
 3. **Extract requirements** — for each functional requirement:
    - Assign a unique ID: `REQ-001`, `REQ-002`, …

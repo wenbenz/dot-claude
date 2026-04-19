@@ -1,8 +1,8 @@
 ---
 name: dev-pipeline
-description: Transforms a technical specification document into reviewed, tested, and documented code with a pull request. Orchestrates planner → coder + test-writer → validator → reviewer → doc-patcher → pr-agent. Use when the user asks to "run the dev pipeline", "implement this spec", or "build from spec".
-allowed-tools: Read Write Glob Agent
-argument-hint: [path/to/spec.md] [branch-name]
+description: Transforms a specification or ticket into reviewed, tested, and documented code with a pull request. Accepts a local spec file, GitHub/Linear/Jira ticket URL, or inline description. Orchestrates planner → coder + test-writer → validator → reviewer → doc-patcher → pr-agent. Use when the user asks to "run the dev pipeline", "implement this spec", "implement this ticket", or "build from spec".
+allowed-tools: Read Write Glob Bash Agent
+argument-hint: [url-or-file-or-description] [branch-name]
 effort: max
 ---
 
@@ -52,20 +52,28 @@ Before calling each agent, write a JSON handoff file to `.pipeline/`. The agent 
 ### 0. Setup
 
 1. **Parse arguments**:
-   - `$ARGUMENTS[0]` — path to a spec document **or** an inline description (required)
+   - `$ARGUMENTS[0]` — ticket URL, file path, or inline description (required)
    - `$ARGUMENTS[1]` — branch name (optional; default derived below)
 
-2. **Determine spec source** — two modes:
+2. **Determine input source** — three modes:
+
+   **Ticket URL mode**: `$ARGUMENTS[0]` is a URL.
+   - `https://github.com/*/issues/*` → fetch with `gh issue view <number> --repo <org/repo> --json title,body,comments`
+   - `https://linear.app/*` → fetch via Linear MCP if available; otherwise stop and ask the user to paste the content
+   - `*atlassian.net/browse/*` → fetch via Jira MCP if available; otherwise stop and ask the user to paste the content
+   - Write fetched content to `.pipeline/spec.md`
+   - `spec_content` = fetched JSON/text; `spec_file` = `.pipeline/spec.md`
+   - Default branch name: derived from ticket ID or title (e.g. `feat/eng-123-add-dark-mode`)
 
    **File mode**: `$ARGUMENTS[0]` is a path to an existing file.
    - Verify the file exists and is readable. Stop if not.
-   - `spec_file` = `$ARGUMENTS[0]`
+   - `spec_file` = `$ARGUMENTS[0]`; `spec_content` = null
    - Default branch name: `feat/<spec-filename-without-extension>`
 
-   **Inline mode**: `$ARGUMENTS[0]` is not an existing file path (treat as a plain-text description).
-   - Also applies when the pipeline is invoked from conversation context (no explicit argument) — use the user's request text as the description.
-   - Write the description to `.pipeline/spec.md` (create `.pipeline/` first).
-   - `spec_file` = `.pipeline/spec.md`
+   **Inline mode**: `$ARGUMENTS[0]` is neither a URL nor an existing file path.
+   - Also applies when the pipeline is invoked from conversation context (no explicit argument) — use the user's request text.
+   - Write the description to `.pipeline/spec.md`
+   - `spec_file` = `.pipeline/spec.md`; `spec_content` = null
    - Default branch name: `feat/pipeline-<timestamp>` (e.g. `feat/pipeline-20260417`)
 
 3. **Create a git worktree** for the branch:
@@ -80,7 +88,15 @@ Before calling each agent, write a JSON handoff file to `.pipeline/`. The agent 
 
 ### 1. Planner
 
-Call the `planner` agent with `spec_file` as its argument. Write its output to `.pipeline/plan.md`.
+Write `.pipeline/handoff_planner.json`:
+```json
+{
+  "spec_file": "<spec_file or null>",
+  "content": "<spec_content or null>",
+  "repo_root": "<repo_root>"
+}
+```
+Call the `planner` agent with `.pipeline/handoff_planner.json`. Write its output to `.pipeline/plan.md`.
 
 **Stop if** the planner emits an ERROR or lists more than 3 open questions — show the questions to the user and ask for clarification.
 
