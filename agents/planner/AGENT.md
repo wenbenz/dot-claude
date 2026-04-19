@@ -76,6 +76,17 @@ Anything the coder should know before starting
    - List edge cases specific to that requirement
    - Flag ambiguous ones in Open Questions
 
+   **If more than 3 requirements are identified**, the task is too large for a single pipeline run. Stop and emit:
+   ```
+   BREAKDOWN REQUIRED: This task has <N> requirements. Split it into smaller tasks before running the pipeline.
+
+   Suggested breakdown:
+   - <Task A title>: REQ-001, REQ-002
+   - <Task B title>: REQ-003, REQ-004
+   - ...
+   ```
+   Do not proceed to architecture design.
+
 4. **Check for existing code** — use Glob/Grep to scan for existing structure in the repo. Align the design with what's already there.
 
 5. **Design architecture** — group requirements by domain into modules. For each module:
@@ -97,3 +108,4 @@ Anything the coder should know before starting
 - Do not write function bodies — that is the coder's job
 - If the spec is too short to extract meaningful requirements, say so explicitly
 - Stop if there are more than 3 open questions — emit them and let the orchestrator ask the user
+- Stop if there are more than 3 requirements — emit a suggested breakdown and let the orchestrator ask the user to split the task

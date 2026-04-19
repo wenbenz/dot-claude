@@ -104,7 +104,10 @@ Write `<pipeline_dir>/handoff_planner.json`:
 ```
 Call the `planner` agent with `<pipeline_dir>/handoff_planner.json`. Write its output to `<pipeline_dir>/plan.md`.
 
-**Stop if** the planner emits an ERROR or lists more than 3 open questions — show the questions to the user and ask for clarification.
+**Stop if** the planner emits:
+- an `ERROR` — show it to the user
+- more than 3 open questions — show them and ask for clarification
+- `BREAKDOWN REQUIRED` — show the suggested breakdown and ask the user to split the task before re-running
 
 ---
 
@@ -226,6 +229,7 @@ git worktree remove --force <worktree_path>
 | Inline mode: no argument and no conversation context | Stop, ask the user what to build |
 | Worktree creation fails | Stop, tell the user (branch may already exist) |
 | Planner finds >3 open questions | Stop, show the questions to the user |
+| Planner finds >3 requirements | Stop, show suggested breakdown to the user |
 | Validator fails 5 times | Stop, show last report to the user |
 | Reviewer requests changes twice | Stop, show review to the user |
 | CI fails 3 times | Stop, show CI log to the user |
