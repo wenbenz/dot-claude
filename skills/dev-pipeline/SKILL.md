@@ -17,28 +17,26 @@ echo "Branch:    $(git branch --show-current 2>/dev/null || echo '(unknown)')"
 
 ## Pipeline Overview
 
-```
-spec.md
-  │
-  ▼
-[planner]          → .pipeline/plan.md (requirements + architecture)
-  │
-  ├─────────────────────────┐
-  ▼                         ▼
-[coder]            [test-writer]     ← both read plan.md
-  │                         │
-  └──────────┬──────────────┘
-             ▼
-        [validator] ──FAIL──→ [coder] or [test-writer] (max 2 rounds)
-             │ PASS
-             ▼
-        [reviewer]  ──CHANGES──→ [coder] (max 1 retry)
-             │ APPROVE
-             ▼
-        [doc-patcher]       → updated docs (if any)
-             │
-             ▼
-        [pr-agent]          → PR URL + CI monitored
+```mermaid
+flowchart TD
+    input([spec / ticket URL / inline text])
+    input --> planner["planner\n→ .pipeline/plan.md"]
+
+    planner --> coder[coder]
+    planner --> testwriter[test-writer]
+
+    coder --> validator
+    testwriter --> validator
+
+    validator -->|PASS| reviewer
+    validator -->|"FAIL (max 5 rounds)"| coder
+    validator -->|"FAIL (max 5 rounds)"| testwriter
+
+    reviewer -->|APPROVE| docpatcher[doc-patcher]
+    reviewer -->|"CHANGES (max 1 retry)"| coder
+
+    docpatcher --> pragent[pr-agent]
+    pragent --> pr([PR URL])
 ```
 
 ## Handoff convention
