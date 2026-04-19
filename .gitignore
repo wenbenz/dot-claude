@@ -17,6 +17,7 @@ mcp-needs-auth-cache.json
 
 # Local memory (personal)
 projects/
+.worktrees/
 
 # Plugins (add manually with: git add -f plugins/)
 plugins/
