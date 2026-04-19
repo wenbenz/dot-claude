@@ -13,4 +13,5 @@ Corriger :
 Ne pas corriger :
 - Accents manquants — l'utilisateur a un clavier anglais
 
-Si aucune correction : > Phrase parfaite !
+Si aucune correction :
+> Phrase parfaite !
