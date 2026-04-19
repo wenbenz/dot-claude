@@ -1,6 +1,6 @@
 ---
 name: plan-tickets
-description: Transforms any input (Jira/Linear/GH issues, Google Docs, ad-hoc instructions) into clear, structured tickets. Creates or updates tickets in GitHub Issues, Linear, or Jira. Use when the user wants to clarify requirements, break down a feature, or turn vague instructions into actionable tickets.
+description: Transforms any input (Jira/Linear/GH issues, Google Docs, inline instructions) into clear, structured tickets. Creates or updates tickets in GitHub Issues, Linear, or Jira. Use when the user wants to clarify requirements, break down a feature, or turn vague instructions into actionable tickets.
 allowed-tools: Read, Write, Glob, Bash, Agent, mcp__linear__*, mcp__jira__*, mcp__claude_ai_Google_Drive__*
 argument-hint: [url-or-file-or-description]
 effort: medium
@@ -35,7 +35,7 @@ Detect the input type:
 - Contains `atlassian.net/browse` → `jira`
 - Starts with `https://docs.google.com` → `google_doc`
 - Is a readable file path → `file`
-- Anything else → `adhoc`
+- Anything else → `stdin`
 
 ---
 
@@ -56,7 +56,7 @@ gh issue view <number> --repo <org/repo> --json title,body,comments,labels
 
 **`file`** — read the file directly.
 
-**`adhoc`** — use `$ARGUMENTS` as-is.
+**`stdin`** — use `$ARGUMENTS` as-is.
 
 If fetching fails and no fallback is possible, stop and tell the user what's needed.
 

@@ -13,7 +13,7 @@ Turn raw, ambiguous input into clear, structured ticket proposals. Do not write 
 
 `$ARGUMENTS` — path to a handoff file containing:
 - `content` — the raw text to analyze (meeting notes, ad-hoc description, pasted ticket, etc.)
-- `source_type` — one of: `gh_issue`, `linear`, `jira`, `google_doc`, `file`, `adhoc`
+- `source_type` — one of: `gh_issue`, `linear`, `jira`, `google_doc`, `file`, `stdin`
 - `existing_tickets` — (optional) list of existing ticket titles/IDs for deduplication context
 - `repo_root` — (optional) path to the repo, used to check existing code for context
 
