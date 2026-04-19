@@ -1,26 +1,19 @@
 # Worktree Workflow
 
-Whenever making changes inside a git repository, follow these steps before touching any file:
+Before touching any file in a git repo:
 
-1. **Find or create a branch** — run `git branch --list` to look for an existing branch related to this work. If one exists, use it. If not, create one with a descriptive name (e.g. `feat/<topic>` or `fix/<topic>`).
-
-2. **Check existing worktrees** — run `git worktree list` to see what worktrees are already checked out. If one already tracks the target branch, reuse it instead of creating a new one.
-
-3. **Make all changes inside a worktree** — add the branch as a worktree if needed:
+1. **Find or create branch** — `git branch --list`; reuse existing related branch or create `feat/<topic>` / `fix/<topic>`.
+2. **Check existing worktrees** — `git worktree list`; reuse if target branch already checked out.
+3. **Work inside a worktree** — add if needed:
    ```
    git worktree add ./.worktrees/<branch-name> <branch-name>
    ```
-   Write and edit files under `./.worktrees/<branch-name>/`, never in the main checkout. Use `git -C ./.worktrees/<branch-name>` for all git operations inside the worktree.
-
-4. **Monitor the PR until merged** — after pushing, watch the PR for review comments or requested changes:
-   - Use `gh pr view <number> --json state,reviewDecision,comments` to poll status.
-   - If changes are requested, apply fixes inside the same worktree, commit, and push.
-   - Keep the worktree alive until the PR is merged or closed.
-
-5. **Clean up** — worktrees do not auto-delete; remove only after the PR is merged (or closed):
+   Edit files under `./.worktrees/<branch-name>/`, never main checkout. Use `git -C ./.worktrees/<branch-name>` for all git ops.
+4. **Monitor PR** — poll with `gh pr view <number> --json state,reviewDecision,comments`; apply fixes in same worktree, commit, push. Keep worktree alive until merged or closed.
+5. **Clean up** after merge:
    ```
    git worktree remove ./.worktrees/<branch-name>
    git worktree prune
    ```
 
-This applies to all file edits, not just dev-pipeline runs.
+Applies to all file edits, not just dev-pipeline runs.

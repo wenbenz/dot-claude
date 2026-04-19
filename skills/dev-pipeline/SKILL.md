@@ -48,7 +48,7 @@ flowchart TD
 
 ## Handoff convention
 
-Before calling each agent, write a JSON handoff file to `<pipeline_dir>/`. The agent reads this file from the absolute path passed as its argument. Each agent also writes its report to `<pipeline_dir>/<agent>_report.md` for use by downstream agents.
+Before calling each agent, write a JSON handoff file to `<pipeline_dir>/`. Agent reads it from the absolute path passed as argument; writes its report to `<pipeline_dir>/<agent>_report.md` for downstream agents.
 
 ---
 
@@ -63,30 +63,25 @@ Before calling each agent, write a JSON handoff file to `<pipeline_dir>/`. The a
 2. **Determine input source** — three modes:
 
    **Ticket URL mode**: `$ARGUMENTS[0]` is a URL.
-   - `https://github.com/*/issues/*` → fetch with `gh issue view <number> --repo <org/repo> --json title,body,comments`
-   - `https://linear.app/*` → fetch via Linear MCP if available; otherwise stop and ask the user to paste the content
-   - `*atlassian.net/browse/*` → fetch via Jira MCP if available; otherwise stop and ask the user to paste the content
-   - Write fetched content to `<pipeline_dir>/spec.md`
-   - `spec_content` = fetched JSON/text; `spec_file` = `<pipeline_dir>/spec.md`
-   - Default branch name: derived from ticket ID or title (e.g. `feat/eng-123-add-dark-mode`)
+   - `https://github.com/*/issues/*` → `gh issue view <number> --repo <org/repo> --json title,body,comments`
+   - `https://linear.app/*` → fetch via Linear MCP if available; else stop and ask user to paste content
+   - `*atlassian.net/browse/*` → fetch via Jira MCP if available; else stop and ask user to paste content
+   - Write fetched content to `<pipeline_dir>/spec.md`; `spec_content` = fetched JSON/text; `spec_file` = `<pipeline_dir>/spec.md`
+   - Default branch: derived from ticket ID or title (e.g. `feat/eng-123-add-dark-mode`)
 
-   **File mode**: `$ARGUMENTS[0]` is a path to an existing file.
-   - Verify the file exists and is readable. Stop if not.
+   **File mode**: `$ARGUMENTS[0]` is path to existing file.
+   - Verify readable; stop if not.
    - `spec_file` = `$ARGUMENTS[0]`; `spec_content` = null
-   - Default branch name: `feat/<spec-filename-without-extension>`
+   - Default branch: `feat/<spec-filename-without-extension>`
 
-   **Inline mode**: `$ARGUMENTS[0]` is neither a URL nor an existing file path.
-   - Also applies when the pipeline is invoked from conversation context (no explicit argument) — use the user's request text.
-   - Write the description to `<pipeline_dir>/spec.md`
-   - `spec_file` = `<pipeline_dir>/spec.md`; `spec_content` = null
-   - Default branch name: `feat/pipeline-<timestamp>` (e.g. `feat/pipeline-20260417`)
+   **Inline mode**: `$ARGUMENTS[0]` is neither URL nor existing file path (also applies when invoked from conversation context — use user's request text).
+   - Write description to `<pipeline_dir>/spec.md`; `spec_file` = `<pipeline_dir>/spec.md`; `spec_content` = null
+   - Default branch: `feat/pipeline-<timestamp>` (e.g. `feat/pipeline-20260417`)
 
-3. **Create a git worktree** for the branch following the worktree-workflow rule (check existing worktrees first, reuse if found). Derive `<worktree_path>` from where the worktree is placed.
+3. **Create git worktree** following worktree-workflow rule (check existing worktrees first, reuse if found). Derive `<worktree_path>` from where worktree is placed.
    - Use `<worktree_path>` as `repo_root` in every downstream handoff.
 
-4. **Set `pipeline_dir`** = `<worktree_path>/.pipeline` — use this absolute path for every artifact below. This isolates each pipeline run to its own worktree and allows concurrent runs without conflicts.
-
-   Create the directory now.
+4. **Set `pipeline_dir`** = `<worktree_path>/.pipeline`. Create directory now.
 
 ---
 
@@ -100,12 +95,9 @@ Write `<pipeline_dir>/handoff_planner.json`:
   "repo_root": "<repo_root>"
 }
 ```
-Call the `planner` agent with `<pipeline_dir>/handoff_planner.json`. Write its output to `<pipeline_dir>/plan.md`.
+Call `planner` with `<pipeline_dir>/handoff_planner.json`. Write output to `<pipeline_dir>/plan.md`.
 
-**Stop if** the planner emits:
-- an `ERROR` — show it to the user
-- more than 3 open questions — show them and ask for clarification
-- `BREAKDOWN REQUIRED` — show the suggested breakdown and ask the user to split the task before re-running
+**Stop if** planner emits: `ERROR`, >3 open questions, or `BREAKDOWN REQUIRED` — show to user.
 
 ---
 
@@ -129,10 +121,7 @@ Write `<pipeline_dir>/handoff_test_writer.json`:
 }
 ```
 
-Call `coder` with `<pipeline_dir>/handoff_coder.json` and `test-writer` with `<pipeline_dir>/handoff_test_writer.json` **simultaneously**. Wait for both.
-
-- Save coder's returned file list as `code_files`.
-- Save test-writer's returned file list as `test_files` and its notes as `validator_notes`.
+Call `coder` and `test-writer` simultaneously. Save coder's file list as `code_files`; test-writer's list as `test_files` and notes as `validator_notes`.
 
 ---
 
@@ -146,15 +135,11 @@ Write `<pipeline_dir>/handoff_validator.json`:
   "validator_notes": "<notes from test-writer>"
 }
 ```
-Call `validator` with `<pipeline_dir>/handoff_validator.json`. Write its output to `<pipeline_dir>/validator_report.md`.
+Call `validator`; write output to `<pipeline_dir>/validator_report.md`.
 
-- **If PASS** → proceed to step 4.
-- **If FAIL** → read the routing summary:
-  - Routed to `coder` → add `failure_details` to `<pipeline_dir>/handoff_coder.json`, call `coder` again
-  - Routed to `test-writer` → add `failure_details` to `<pipeline_dir>/handoff_test_writer.json`, call `test-writer` again
-  - Routed to `analyst` → **stop and ask the user** to clarify the requirement
-  - After fixes, re-run `validator`
-- **After 5 failed rounds** → stop and show `<pipeline_dir>/validator_report.md` to the user.
+- **PASS** → step 4.
+- **FAIL** → read routing: `coder` → add `failure_details` to coder handoff, re-call coder; `test-writer` → add to test-writer handoff, re-call; `analyst` → stop and ask user. Re-run validator after fixes.
+- **5 failed rounds** → stop, show report to user.
 
 ---
 
@@ -170,10 +155,10 @@ Write `<pipeline_dir>/handoff_reviewer.json`:
   "validator_report": "<pipeline_dir>/validator_report.md"
 }
 ```
-Call `reviewer` with `<pipeline_dir>/handoff_reviewer.json`. Write its output to `<pipeline_dir>/reviewer_report.md`.
+Call `reviewer`; write output to `<pipeline_dir>/reviewer_report.md`.
 
-- **If APPROVE** → proceed to step 5.
-- **If REQUEST CHANGES** → send BLOCKING issues back to `coder` (add as `review_issues` in handoff), reset validator round counter, return to step 3. Maximum **1 retry** — stop and show the report if still failing.
+- **APPROVE** → step 5.
+- **REQUEST CHANGES** → send BLOCKING issues to `coder` (add as `review_issues`), reset validator counter, return to step 3. Max 1 retry — stop and show report if still failing.
 
 ---
 
@@ -186,7 +171,7 @@ Write `<pipeline_dir>/handoff_doc_patcher.json`:
   "repo_root": "<repo_root>"
 }
 ```
-Call `doc-patcher` with `<pipeline_dir>/handoff_doc_patcher.json`. Save its list of updated files as `doc_files`.
+Call `doc-patcher`; save updated file list as `doc_files`.
 
 ---
 
@@ -208,11 +193,9 @@ Write `<pipeline_dir>/handoff_pr_agent.json`:
 }
 ```
 
-Call `pr-agent` with `<pipeline_dir>/handoff_pr_agent.json`. The pr-agent handles: reading PR description content, cleanup of `<pipeline_dir>`, commit, push, PR creation, and CI monitoring.
+Call `pr-agent` (handles cleanup, commit, push, PR creation, CI monitoring). Report PR URL to user.
 
-Report the PR URL to the user when done.
-
-After the PR is created (or if the pipeline is stopped early due to an error), remove the worktree:
+After PR created (or on early stop), remove worktree:
 ```
 git worktree remove --force <worktree_path>
 ```
@@ -223,20 +206,20 @@ git worktree remove --force <worktree_path>
 
 | Situation | Action |
 |---|---|
-| File mode: spec file not found | Stop immediately, tell the user |
-| Inline mode: no argument and no conversation context | Stop, ask the user what to build |
-| Worktree creation fails | Stop, tell the user (branch may already exist) |
-| Planner finds >3 open questions | Stop, show the questions to the user |
-| Planner finds >3 requirements | Stop, show suggested breakdown to the user |
-| Validator fails 5 times | Stop, show last report to the user |
-| Reviewer requests changes twice | Stop, show review to the user |
-| CI fails 3 times | Stop, show CI log to the user |
-| Any agent emits ERROR | Stop, show the error to the user |
+| Spec file not found | Stop, tell user |
+| No argument and no conversation context | Stop, ask user |
+| Worktree creation fails | Stop, tell user |
+| Planner >3 open questions | Stop, show questions |
+| Planner >3 requirements | Stop, show breakdown |
+| Validator fails 5 times | Stop, show last report |
+| Reviewer requests changes twice | Stop, show review |
+| CI fails 3 times | Stop, show CI log |
+| Any agent emits ERROR | Stop, show error |
 
 ## Rules
 
-- Never commit `<pipeline_dir>/` artifacts to the repo
+- Never commit `<pipeline_dir>/` artifacts
 - Never push to `main` or `master`
 - Always run coder and test-writer in parallel (step 2)
-- Show progress to the user after each major step
+- Show progress after each major step
 - Validator round counter resets per reviewer cycle, not globally
