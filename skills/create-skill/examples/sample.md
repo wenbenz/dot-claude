@@ -1,7 +1,5 @@
 # Example: update-docs skill
 
-A well-written skill for reference.
-
 ```
 skills/update-docs/SKILL.md
 ```
@@ -16,31 +14,18 @@ effort: high
 
 # Update Docs
 
-Scan this repository and update all existing documentation to reflect the current state of the code. Write all documentation in **English**.
+Scan repository, update existing docs to reflect current code. Write in **English**.
 
 ## Steps
 
-1. **Inventory existing docs** — find and read all of the following that exist:
-   - `README.md`
-   - `CLAUDE.md`
-   - `docs/*.md`
-
-2. **Explore the codebase** — read enough to understand:
-   - Project purpose and how to run it
-   - Directory structure and key components
-   - Architecture and data flow
-   - Important dependencies
-
-3. **Update each doc** — for each file found in step 1:
-   - Only update sections that are outdated or incorrect
-   - Correct inaccurate content even if written manually
-
-4. **Create missing docs** — create any that don't exist:
-   - `docs/CODEBASE.md`, `README.md`, `CLAUDE.md`
+1. **Inventory** — find and read: `README.md`, `CLAUDE.md`, `docs/*.md`
+2. **Explore codebase** — understand purpose, structure, architecture, dependencies
+3. **Update each doc** — only outdated/incorrect sections; correct inaccuracies
+4. **Create missing** — `docs/CODEBASE.md`, `README.md`, `CLAUDE.md`
 ```
 
 **Why this works:**
-- Description has clear trigger phrases under 250 chars
+- Trigger phrases front-loaded in description (under 250 chars)
 - `allowed-tools` lists exactly what's needed
-- `effort: high` signals this is a thorough task
-- Steps are concrete and actionable
+- `effort: high` signals thorough task
+- Steps concrete and actionable

@@ -7,16 +7,12 @@ effort: medium
 
 # Reviewer
 
-Do an independent code review of the implementation and tests. Produce a clear verdict: approve or request changes.
+Independent code review of implementation and tests. Produce clear verdict: approve or request changes.
 
 ## Input
 
-`$ARGUMENTS` — path to a handoff file or directory containing:
-- `requirements_file` — path to analyst output
-- `architecture_file` — path to architect output
-- `code_files` — list of implemented source files
-- `test_files` — list of test files
-- `validator_report` — path to passing validator report
+`$ARGUMENTS` — path to handoff file:
+- `requirements_file`, `architecture_file`, `code_files`, `test_files`, `validator_report`
 
 ## Output
 
@@ -41,48 +37,30 @@ One paragraph overall assessment.
 
 ## Coverage Assessment
 - Requirements covered: X / Y
-- Missing coverage: [list REQ-IDs with insufficient tests]
+- Missing coverage: [REQ-IDs with insufficient tests]
 
 ## Security Check
 - [ ] No hardcoded secrets or credentials
 - [ ] Input validation at system boundaries
 - [ ] No obvious injection vulnerabilities
-- [ ] Dependencies are from the architecture (no surprise additions)
+- [ ] No surprise dependency additions
 ```
 
-`BLOCKING` issues must be fixed before the PR. `SUGGESTION` items are optional.
+`BLOCKING` must be fixed before PR. `SUGGESTION` optional.
 
 ## Steps
 
-1. **Read all inputs** — requirements, architecture, source files, test files, validator report.
-
-2. **Read repo conventions** — check for:
-   - `.claude/skills/how-to-code/SKILL.md`
-   - `.claude/skills/how-to-test/SKILL.md`
-   Use these as the standard against which you review.
-
-3. **Check requirements coverage** — for each REQ, confirm:
-   - Implementation exists and matches the acceptance criteria
-   - At least one test covers it
-
-4. **Review source code**:
-   - Does each module match the architecture design?
-   - Are interfaces implemented correctly?
-   - Any obvious logic bugs?
-   - Security: input validation, no secrets, no injection vectors
-
-5. **Review test code**:
-   - Are tests isolated (no shared mutable state)?
-   - Do test names describe the failure clearly?
-   - Are mocks used correctly per the test plan?
-
-6. **Cross-check architecture** — does the implementation match what the architect designed? Flag any unexplained deviations.
-
-7. **Emit the verdict and report**.
+1. **Read all inputs** — requirements, architecture, source files, test files, validator report
+2. **Read repo conventions** — `.claude/skills/how-to-code/SKILL.md` and `.claude/skills/how-to-test/SKILL.md`; use as review standard
+3. **Check requirements coverage** — per REQ: implementation matches acceptance criteria and at least one test covers it
+4. **Review source code** — module matches architecture? interfaces correct? logic bugs? security?
+5. **Review tests** — isolated? test names describe failure? mocks used correctly?
+6. **Cross-check architecture** — flag unexplained deviations
+7. **Emit verdict and report**
 
 ## Rules
 
-- Only flag BLOCKING issues that would cause incorrect behaviour, security problems, or test failures
-- Do not flag style issues as BLOCKING if the repo has no written convention for them
-- If the validator report shows all tests passing, do not re-run tests — trust the report
-- Do not suggest features beyond the requirements
+- `BLOCKING` only for incorrect behaviour, security problems, or test failures
+- No style `BLOCKING` without written repo convention
+- Validator shows all passing → trust it, don't re-run
+- No feature suggestions beyond requirements

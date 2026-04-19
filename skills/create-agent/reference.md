@@ -1,34 +1,32 @@
 # Agent Reference
 
-## Valid frontmatter fields for agents
+## Valid frontmatter fields
 
 | Field | Notes |
 |---|---|
 | `name` | Lowercase, hyphens only. Must be unique. |
-| `description` | When Claude should delegate here — front-load key trigger phrases. |
-| `tools` | Allowlist. **Comma-separated** (e.g. `Read, Glob, Grep`). Omit to inherit all tools. |
+| `description` | When to delegate — front-load key trigger phrases. |
+| `tools` | Allowlist. **Comma-separated**. Omit to inherit all. |
 | `disallowedTools` | Denylist. Applied before `tools`. |
-| `model` | `haiku`, `sonnet`, `opus`, a full model ID, or `inherit`. |
+| `model` | `haiku`, `sonnet`, `opus`, full model ID, or `inherit`. |
 | `permissionMode` | `default`, `acceptEdits`, `auto`, `dontAsk`, `bypassPermissions`, `plan`. |
-| `maxTurns` | Max agentic turns before the agent stops. |
-| `skills` | Skills whose full content is injected at startup. |
-| `mcpServers` | MCP servers scoped to this agent only. |
+| `maxTurns` | Max agentic turns before stop. |
+| `skills` | Skills injected at startup. |
+| `mcpServers` | MCP servers scoped to this agent. |
 | `hooks` | Lifecycle hooks scoped to this agent. |
-| `memory` | `user`, `project`, or `local` — enables cross-session learning. |
-| `background` | `true` to always run as a background task. |
+| `memory` | `user`, `project`, or `local`. |
+| `background` | `true` to always run as background task. |
 | `effort` | `low`, `medium`, `high`, or `max`. |
-| `isolation` | `worktree` to run in a temporary isolated git checkout. |
+| `isolation` | `worktree` for isolated git checkout. |
 | `color` | `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink`, `cyan`. |
-| `initialPrompt` | Auto-submitted as first user turn when agent starts. |
+| `initialPrompt` | Auto-submitted as first user turn. |
 
-**Note:** Agent files use `tools:` (comma-separated), not `allowed-tools:` (which is a skill field). There is no `context: fork` or `user-invocable` for agents.
+**Note:** Agents use `tools:` (comma-separated), not `allowed-tools:`. No `context: fork` or `user-invocable` for agents.
 
-## Conventions for pipeline agents
+## Pipeline conventions
 
-### Input
-Pipeline agents receive their input as a path to a JSON handoff file. The orchestrator writes this file before calling the agent. Pass the file path as `$ARGUMENTS`.
+**Input:** Orchestrator writes JSON handoff file; agent receives path as `$ARGUMENTS`.
 
-Handoff file format:
 ```json
 {
   "requirements_file": ".pipeline/requirements.md",
@@ -37,40 +35,28 @@ Handoff file format:
 }
 ```
 
-### Output
-The agent's **final message** is captured by the caller. Structure it clearly:
-- Always include a status line: `## Status\nSUCCESS | FAIL | ERROR`
-- Include the payload the next agent needs
-- Write large outputs (reports, plans) to `.pipeline/<agent>_report.md` and reference the path
+**Output:** Agent's final message captured by caller. Always include `## Status\nSUCCESS | FAIL | ERROR`. Write large outputs to `.pipeline/<agent>_report.md`.
 
-### Error handling
-If input is malformed or a required file is missing:
-1. Emit a structured error with `## Status\nERROR` and a description
-2. Do NOT guess or proceed with bad input
-3. Stop immediately
+**Error handling:** Malformed input → emit `## Status\nERROR` with description and stop.
 
-## Pipeline agent roles
+## Pipeline roles
 
-| Agent | Handoff in | Writes to disk | Returns |
+| Agent | Handoff in | Writes | Returns |
 |---|---|---|---|
-| `analyst` | Spec file path (direct arg) | — | Requirements Markdown |
-| `architect` | `requirements_file` | — | Architecture Markdown |
-| `coder` | `requirements_file`, `architecture_file`, `repo_root` | Source files | File list |
-| `test-designer` | `requirements_file`, `architecture_file` | `test_plan.md` | Test plan Markdown |
-| `test-writer` | `test_plan_file`, `code_files`, `repo_root` | Test files | File list + `validator_notes` |
-| `validator` | `test_files`, `repo_root`, `validator_notes` | `validator_report.md` | Pass/fail report |
-| `reviewer` | `requirements_file`, `architecture_file`, `code_files`, `test_files`, `validator_report` | `reviewer_report.md` | Verdict + issues |
-| `doc-updater` | `repo_root`, `reviewer_verdict` | Doc files | File list |
-| `pr-agent` | All of the above + `branch_name` | — | PR URL |
+| `analyst` | Spec path | — | Requirements MD |
+| `architect` | `requirements_file` | — | Architecture MD |
+| `coder` | requirements, architecture, repo_root | Source files | File list |
+| `test-designer` | requirements, architecture | `test_plan.md` | Test plan MD |
+| `test-writer` | test_plan, code_files, repo_root | Test files | File list + notes |
+| `validator` | test_files, repo_root, notes | `validator_report.md` | Pass/fail report |
+| `reviewer` | requirements, architecture, code, tests, validator | `reviewer_report.md` | Verdict |
+| `doc-updater` | repo_root, reviewer_verdict | Doc files | File list |
+| `pr-agent` | All above + branch_name | — | PR URL |
 
 ## Repo-provided interface skills
 
-Agents that generate code or tests should delegate style decisions to the repo's own skills:
-
-```markdown
-## Conventions
-Check for a local skill first, then fall back to global:
-1. `.claude/skills/how-to-code/SKILL.md` — project-local code conventions
+Code/test agents should delegate style to repo skills:
+1. `.claude/skills/how-to-code/SKILL.md` — project-local
 2. `~/.claude/skills/how-to-code/SKILL.md` — global fallback
-If neither exists, infer conventions from existing code in the repo.
-```
+
+If neither exists, infer from existing code.
