@@ -129,7 +129,7 @@ Call `coder` with `.pipeline/handoff_coder.json` and `test-writer` with `.pipeli
 
 ---
 
-### 3. Validator loop (max 2 rounds)
+### 3. Validator loop (max 5 rounds)
 
 Write `.pipeline/handoff_validator.json`:
 ```json
@@ -147,7 +147,7 @@ Call `validator` with `.pipeline/handoff_validator.json`. Write its output to `.
   - Routed to `test-writer` → add `failure_details` to `.pipeline/handoff_test_writer.json`, call `test-writer` again
   - Routed to `analyst` → **stop and ask the user** to clarify the requirement
   - After fixes, re-run `validator`
-- **After 2 failed rounds** → stop and show `.pipeline/validator_report.md` to the user.
+- **After 5 failed rounds** → stop and show `.pipeline/validator_report.md` to the user.
 
 ---
 
@@ -220,7 +220,7 @@ git worktree remove --force <worktree_path>
 | Inline mode: no argument and no conversation context | Stop, ask the user what to build |
 | Worktree creation fails | Stop, tell the user (branch may already exist) |
 | Planner finds >3 open questions | Stop, show the questions to the user |
-| Validator fails 2 times | Stop, show last report to the user |
+| Validator fails 5 times | Stop, show last report to the user |
 | Reviewer requests changes twice | Stop, show review to the user |
 | CI fails 3 times | Stop, show CI log to the user |
 | Any agent emits ERROR | Stop, show the error to the user |
