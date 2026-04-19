@@ -32,7 +32,10 @@ Do NOT use: `version`, or any unlisted field.
 
 ## Dynamic context injection
 
-Inline: `Current branch: !` git branch --show-current ` `
+Inline:
+```markdown
+Current branch: !`git branch --show-current`
+```
 
 Multi-line:
 ````markdown
