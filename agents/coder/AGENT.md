@@ -22,10 +22,10 @@ Write implementation from architecture and requirements. Follow repo conventions
 
 ```
 ## Files Written
-- path/to/file.ext — contents
+- path/to/file.ext — one-line summary of purpose
 
 ## Files Modified
-- path/to/file.ext — what changed
+- path/to/file.ext
 
 ## Not Implemented
 - REQ-XXX — reason
