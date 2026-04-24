@@ -21,3 +21,5 @@ projects/
 
 # Plugins (add manually with: git add -f plugins/)
 plugins/
+*.local.*
+paste-cache/

@@ -19,7 +19,7 @@ git branch --show-current 2>/dev/null && git rev-parse --show-toplevel 2>/dev/nu
 5. **Apply changes** — read from repo root, write inside worktree.
 6. **Commit** inside worktree.
 7. **Push** (no `-f`) from worktree.
-8. **Open PR**: `gh pr create --title "<title>" --body "<summary>"`
+8. **Open PR**: `gh pr create --draft --title "<title>" --body "<summary>"`
 9. **Clean up** worktree after PR is open.
 10. **Confirm** — show PR URL.
 

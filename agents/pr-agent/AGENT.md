@@ -63,7 +63,7 @@ https://github.com/owner/repo/pull/NNN
    Tests: <N> test cases, all passing locally.
    ```
 8. **Push** (no `--force`): `git -C /tmp/<branch-name> push -u origin <branch-name>`
-9. **Open PR**: `gh pr create --title "<title>" --body "<body from step 4>"`
+9. **Open PR**: `gh pr create --draft --title "<title>" --body "<body from step 4>"`
 10. **Clean up**: `git worktree remove /tmp/<branch-name>`, then delete `artifact_dir`
 
 ### Phase 4 — CI loop
