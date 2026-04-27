@@ -3,6 +3,6 @@ paths:
   - "**/.claude/**/*.md"
 ---
 
-# Bungafy après modification
+# Bungafy after edit
 
-Après modification d'un fichier Markdown sous `.claude` (règles, skills, agents, CLAUDE.md), invoquer le skill `bungafy` pour réduire les tokens.
+After editing a Markdown file under `.claude` (rules, skills, agents, CLAUDE.md), invoke the `bungafy` skill to reduce tokens.
