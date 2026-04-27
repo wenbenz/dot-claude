@@ -1,11 +1,5 @@
 # Clarification Questions
 
-Ask clarifying questions in multiple-choice format, one at a time.
+To ask clarifying questions, use `AskUserQuestion` tool — renders interactive prompt with clickable options.
 
-**Format:**
-> Question?
-> - A) option
-> - B) option
-> - C) option
-
-Never bundle questions. Wait for answer before asking next.
+One at a time. Wait for answer before asking next.
