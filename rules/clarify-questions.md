@@ -1,6 +1,6 @@
 # Clarification Questions
 
-When asking the user a clarifying question, prefer multiple-choice format. Ask one question at a time.
+Ask clarifying questions in multiple-choice format, one at a time.
 
 **Format:**
 > Question?
@@ -8,4 +8,4 @@ When asking the user a clarifying question, prefer multiple-choice format. Ask o
 > - B) option
 > - C) option
 
-Never bundle multiple questions in one message. Wait for the answer before asking the next.
+Never bundle questions. Wait for answer before asking next.
