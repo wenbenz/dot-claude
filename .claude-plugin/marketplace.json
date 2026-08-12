@@ -1,0 +1,24 @@
+{
+  "name": "dot-claude",
+  "owner": {
+    "name": "wenbenz"
+  },
+  "description": "Personal Claude Code skills and agents",
+  "plugins": [
+    {
+      "name": "dev-pipeline",
+      "source": "./dev-pipeline",
+      "description": "Turns a spec or ticket into reviewed, tested, documented code with a pull request"
+    },
+    {
+      "name": "meta-tools",
+      "source": "./meta-tools",
+      "description": "Tools for authoring new skills, agents, and rules, and keeping docs in sync"
+    },
+    {
+      "name": "bungafy",
+      "source": "./bungafy",
+      "description": "Compress markdown files to reduce token count"
+    }
+  ]
+}
