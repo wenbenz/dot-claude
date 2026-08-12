@@ -22,7 +22,7 @@ Turns a spec or ticket into reviewed, tested, documented code with a pull reques
 | `/automake:plan-tickets` | Turns raw input (issues, docs, ad-hoc text) into structured tickets |
 | `/automake:create-pr` | Branch + worktree + push + open PR, standalone |
 
-Backed by 8 pipeline agents (`planner`, `coder`, `test-writer`, `validator`, `reviewer`, `doc-patcher`, `pr-agent`, `ticket-analyst`) — see [docs/CODEBASE.md](docs/CODEBASE.md) for how they fit together.
+Backed by 8 pipeline agents (`planner`, `coder`, `test-writer`, `validator`, `reviewer`, `doc-patcher`, `pr-agent`, `ticket-analyst`) — see [automake/README.md](automake/README.md) for how they fit together.
 
 ### claudetools
 
