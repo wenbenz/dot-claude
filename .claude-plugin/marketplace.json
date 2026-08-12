@@ -6,19 +6,14 @@
   "description": "Personal Claude Code skills and agents",
   "plugins": [
     {
-      "name": "dev-pipeline",
-      "source": "./dev-pipeline",
+      "name": "automake",
+      "source": "./automake",
       "description": "Turns a spec or ticket into reviewed, tested, documented code with a pull request"
     },
     {
-      "name": "meta-tools",
-      "source": "./meta-tools",
-      "description": "Tools for authoring new skills, agents, and rules, and keeping docs in sync"
-    },
-    {
-      "name": "bungafy",
-      "source": "./bungafy",
-      "description": "Compress markdown files to reduce token count"
+      "name": "claudetools",
+      "source": "./claudetools",
+      "description": "Tools for authoring new skills, agents, and rules, keeping docs in sync, and compressing markdown to save tokens"
     }
   ]
 }
