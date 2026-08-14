@@ -1,0 +1,34 @@
+{
+  "initial": "queued",
+  "terminal": ["done", "failed"],
+  "agents": {
+    "planning": ["planner"],
+    "coding": ["coder", "test-writer"],
+    "validating": ["validator"],
+    "reviewing": ["reviewer"],
+    "doc_patching": ["doc-patcher"],
+    "pr_open": ["pr-agent"]
+  },
+  "transitions": {
+    "queued": { "start": "planning" },
+    "planning": { "success": "coding", "error": "blocked", "breakdown_required": "blocked" },
+    "blocked": { "resume": "planning" },
+    "coding": { "success": "validating" },
+    "validating": {
+      "pass": "reviewing",
+      "fail_coder": "coding",
+      "fail_test_writer": "coding",
+      "fail_analyst": "blocked",
+      "max_rounds": "failed"
+    },
+    "reviewing": { "approve": "doc_patching", "changes": "coding", "max_retries": "failed" },
+    "doc_patching": { "success": "pr_open" },
+    "pr_open": { "ci_pass": "done", "ci_fail": "pr_open", "ci_max_rounds": "failed" }
+  },
+  "limits": {
+    "validating.fail_coder": { "max": 5, "on_exceed": "max_rounds", "cycle_agent": "reviewer" },
+    "validating.fail_test_writer": { "max": 5, "on_exceed": "max_rounds", "cycle_agent": "reviewer" },
+    "reviewing.changes": { "max": 2, "on_exceed": "max_retries", "cycle_agent": "planner" },
+    "pr_open.ci_fail": { "max": 3, "on_exceed": "ci_max_rounds", "cycle_agent": "doc-patcher" }
+  }
+}
