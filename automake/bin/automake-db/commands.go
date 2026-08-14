@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -121,15 +122,7 @@ func newTopologyCmd() *cobra.Command {
 }
 
 func loadTopologyForCLI(configPath string) (string, *Topology, error) {
-	path, err := resolveTopologyPath(configPath)
-	if err != nil {
-		return "", nil, err
-	}
-	topo, err := LoadTopology(path)
-	if err != nil {
-		return "", nil, err
-	}
-	return path, topo, nil
+	return ResolveTopology(configPath)
 }
 
 // ---- issue ----
@@ -158,16 +151,12 @@ func newIssueCreateCmd() *cobra.Command {
 			if description == "" {
 				return fmt.Errorf("--description is required")
 			}
-			path, err := resolveTopologyPath(configPath)
-			if err != nil {
-				return err
-			}
-			topo, err := LoadTopology(path)
+			source, topo, err := ResolveTopology(configPath)
 			if err != nil {
 				return err
 			}
 			if topo.Initial == "" {
-				return fmt.Errorf("topology %s has no initial state", path)
+				return fmt.Errorf("topology %s has no initial state", source)
 			}
 
 			db, err := openDB()
@@ -224,7 +213,7 @@ func newIssueGetCmd() *cobra.Command {
 			row := db.QueryRow(`SELECT id, status, description, ticket, created_at FROM issues WHERE id = ?`, id)
 			iss, err := scanIssue(row)
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if errors.Is(err, sql.ErrNoRows) {
 					return fmt.Errorf("issue %d not found", id)
 				}
 				return err
@@ -299,11 +288,7 @@ func newIssueTransitionCmd() *cobra.Command {
 			}
 			event := args[1]
 
-			path, err := resolveTopologyPath(configPath)
-			if err != nil {
-				return err
-			}
-			topo, err := LoadTopology(path)
+			_, topo, err := ResolveTopology(configPath)
 			if err != nil {
 				return err
 			}
@@ -314,39 +299,8 @@ func newIssueTransitionCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			var status, createdAt string
-			row := db.QueryRow(`SELECT status, created_at FROM issues WHERE id = ?`, id)
-			if err := row.Scan(&status, &createdAt); err != nil {
-				if err == sql.ErrNoRows {
-					return fmt.Errorf("issue %d not found", id)
-				}
-				return err
-			}
-
-			evs, ok := topo.Transitions[status]
-			if !ok {
-				return fmt.Errorf("illegal transition: state %q has no defined transitions (issue %d unchanged)", status, id)
-			}
-
-			effectiveEvent := event
-			if lim, ok := topo.Limits[status+"."+event]; ok {
-				count, err := countSinceCycle(db, id, topo.Agents[status], lim.CycleAgent, createdAt)
-				if err != nil {
-					return err
-				}
-				if count >= lim.Max {
-					fmt.Fprintf(os.Stderr, "limit reached (%d/%d for %s.%s) — auto-routing via %q\n",
-						count, lim.Max, status, event, lim.OnExceed)
-					effectiveEvent = lim.OnExceed
-				}
-			}
-
-			next, ok := evs[effectiveEvent]
-			if !ok {
-				return fmt.Errorf("illegal transition: no event %q from state %q (issue %d unchanged)", effectiveEvent, status, id)
-			}
-
-			if _, err := db.Exec(`UPDATE issues SET status = ? WHERE id = ?`, next, id); err != nil {
+			next, err := applyTransition(db, topo, id, event)
+			if err != nil {
 				return err
 			}
 			fmt.Println(next)
@@ -355,6 +309,74 @@ func newIssueTransitionCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&configPath, "config", "", "path to topology config")
 	return cmd
+}
+
+// applyTransition is the DFA enforcement point: it resolves (status, event)
+// against the topology, applies any configured limit, and writes the new
+// status. Returns the new status.
+//
+// The write is a compare-and-swap on the status that was read, not a blind
+// UPDATE by id. Two orchestrators can resolve to the same issue -- that is
+// exactly what resumability-by-ticket makes possible -- and a blind write
+// would let a `pass` and a `fail_coder` both succeed, last writer winning,
+// silently destroying the guarantee the whole design rests on. A CAS turns
+// that race into a visible error instead.
+func applyTransition(db *sql.DB, topo *Topology, id int64, event string) (string, error) {
+	var status, createdAt string
+	row := db.QueryRow(`SELECT status, created_at FROM issues WHERE id = ?`, id)
+	if err := row.Scan(&status, &createdAt); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("issue %d not found", id)
+		}
+		return "", err
+	}
+
+	evs, ok := topo.Transitions[status]
+	if !ok {
+		return "", fmt.Errorf("illegal transition: state %q has no defined transitions (issue %d unchanged)", status, id)
+	}
+
+	effectiveEvent := event
+	if lim, ok := topo.Limits[status+"."+event]; ok {
+		count, err := countSinceCycle(db, id, topo.Agents[status], lim.CycleAgent, createdAt)
+		if err != nil {
+			return "", err
+		}
+		// A zero count means no run of this state's agent was recorded since
+		// the cycle boundary, so the cap can never advance and the loop it
+		// guards is effectively uncapped. That only happens when the caller
+		// skipped the `work start` that every transition is required to
+		// follow, which is silent and self-inflicted -- say so.
+		if count == 0 {
+			fmt.Fprintf(os.Stderr, "warning: limit %s.%s is configured, but no %s work row exists since the cycle boundary, "+
+				"so the limit cannot advance. Every transition must be preceded by `work start` for the agent whose output produced the event.\n",
+				status, event, strings.Join(topo.Agents[status], "/"))
+		}
+		if count >= lim.Max {
+			fmt.Fprintf(os.Stderr, "limit reached (%d/%d for %s.%s) — auto-routing via %q\n",
+				count, lim.Max, status, event, lim.OnExceed)
+			effectiveEvent = lim.OnExceed
+		}
+	}
+
+	next, ok := evs[effectiveEvent]
+	if !ok {
+		return "", fmt.Errorf("illegal transition: no event %q from state %q (issue %d unchanged)", effectiveEvent, status, id)
+	}
+
+	res, err := db.Exec(`UPDATE issues SET status = ? WHERE id = ? AND status = ?`, next, id, status)
+	if err != nil {
+		return "", err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if n == 0 {
+		return "", fmt.Errorf("conflict: issue %d was no longer in state %q when the transition was applied "+
+			"(another run changed it concurrently; issue unchanged)", id, status)
+	}
+	return next, nil
 }
 
 // countSinceCycle counts work rows for the given agents, started at or after
@@ -373,8 +395,12 @@ func countSinceCycle(db *sql.DB, issueID int64, stateAgents []string, cycleAgent
 			cycleStart = maxStarted.String
 		}
 	}
+	// A limit on an agentless state can never fire. `topology validate`
+	// rejects that config, but a topology can be passed straight to
+	// `issue transition` without ever being validated, so refuse loudly here
+	// rather than returning a zero count that silently disables the cap.
 	if len(stateAgents) == 0 {
-		return 0, nil
+		return 0, fmt.Errorf("limit is configured on a state with no agents, so its count would always be zero; run `automake-db topology validate`")
 	}
 	placeholders := make([]string, len(stateAgents))
 	qargs := []any{issueID}
@@ -425,10 +451,58 @@ func newDepAddCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
+			// The CHECK constraint only stops the one-hop case (id == dep);
+			// a longer cycle would be accepted and then deadlock anything
+			// that walks dependencies looking for ready work.
+			cyclic, err := dependsOn(db, dep, id)
+			if err != nil {
+				return err
+			}
+			if cyclic {
+				return fmt.Errorf("dependency cycle: issue %d already depends on issue %d, directly or transitively", dep, id)
+			}
 			_, err = db.Exec(`INSERT INTO dependencies (id, dependency) VALUES (?, ?)`, id, dep)
 			return err
 		},
 	}
+}
+
+// dependsOn reports whether from reaches to by following dependency edges.
+func dependsOn(db *sql.DB, from, to int64) (bool, error) {
+	seen := map[int64]bool{from: true}
+	queue := []int64{from}
+	for len(queue) > 0 {
+		cur := queue[0]
+		queue = queue[1:]
+		if cur == to {
+			return true, nil
+		}
+		rows, err := db.Query(`SELECT dependency FROM dependencies WHERE id = ?`, cur)
+		if err != nil {
+			return false, err
+		}
+		var next []int64
+		for rows.Next() {
+			var d int64
+			if err := rows.Scan(&d); err != nil {
+				rows.Close()
+				return false, err
+			}
+			next = append(next, d)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return false, err
+		}
+		rows.Close()
+		for _, d := range next {
+			if !seen[d] {
+				seen[d] = true
+				queue = append(queue, d)
+			}
+		}
+	}
+	return false, nil
 }
 
 func newDepListCmd() *cobra.Command {

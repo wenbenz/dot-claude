@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS issues (
   status      TEXT NOT NULL,
   description TEXT NOT NULL,
   ticket      TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  created_at  TEXT      NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS work (
   issue_id INTEGER NOT NULL REFERENCES issues(id),
   agent    TEXT NOT NULL,
   context  TEXT,
-  started  TIMESTAMPTZ NOT NULL,
-  finished TIMESTAMPTZ,
+  started  TEXT NOT NULL,
+  finished TEXT,
   output   TEXT,
   repo     TEXT NOT NULL,
   branch   TEXT,

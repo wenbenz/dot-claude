@@ -1,16 +1,29 @@
 package main
 
 import (
+	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 
 	"github.com/spf13/viper"
 )
+
+// The default topology is compiled into the binary rather than read from a
+// path next to the source. Deriving the path from runtime.Caller pins the
+// binary to the source tree it was built from, so a `go build -o ~/bin/...`,
+// a moved checkout, or a -trimpath build would leave every topology-resolving
+// command unable to find its own default. `automake-db topology show` dumps
+// this JSON, which is how you fork it into a per-repo override.
+//
+//go:embed topology.default.json
+var defaultTopologyJSON []byte
+
+// builtinTopologySource stands in for a file path in user-facing messages
+// when the topology came from the embedded default.
+const builtinTopologySource = "<built-in default>"
 
 // Limit caps how many times an event may fire from a state before the CLI
 // auto-routes to on_exceed instead. Max counts total occurrences of the
@@ -40,28 +53,23 @@ type Topology struct {
 	Limits      map[string]Limit             `json:"limits"`
 }
 
-// resolveTopologyPath picks the config to load: an explicit --config flag
-// wins, then $AUTOMAKE_TOPOLOGY, then the shipped default. Per-repo overrides
-// (<repo_root>/.claude/automake/topology.json) are the orchestrating skill's
-// job to detect and pass in via --config — the CLI itself stays repo-agnostic.
-func resolveTopologyPath(flagVal string) (string, error) {
+// ResolveTopology picks the config to load: an explicit --config flag wins,
+// then $AUTOMAKE_TOPOLOGY, then the topology compiled into the binary.
+// Per-repo overrides (<repo_root>/.claude/automake/topology.json) are the
+// orchestrating skill's job to detect and pass in via --config — the CLI
+// itself stays repo-agnostic. The returned source is a path, or
+// builtinTopologySource, and is only for messages.
+func ResolveTopology(flagVal string) (string, *Topology, error) {
 	if flagVal != "" {
-		return flagVal, nil
+		t, err := LoadTopology(flagVal)
+		return flagVal, t, err
 	}
 	if env := viper.GetString("topology"); env != "" {
-		return env, nil
+		t, err := LoadTopology(env)
+		return env, t, err
 	}
-	return defaultTopologyPath()
-}
-
-func defaultTopologyPath() (string, error) {
-	_, thisFile, _, ok := runtime.Caller(0)
-	if !ok {
-		return "", fmt.Errorf("cannot resolve automake-db source location")
-	}
-	// thisFile is .../automake/bin/automake-db/topology.go
-	dir := filepath.Dir(thisFile)
-	return filepath.Join(dir, "..", "..", "config", "topology.default.json"), nil
+	t, err := parseTopology(defaultTopologyJSON, builtinTopologySource)
+	return builtinTopologySource, t, err
 }
 
 func LoadTopology(path string) (*Topology, error) {
@@ -69,18 +77,23 @@ func LoadTopology(path string) (*Topology, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading topology config %s: %w", path, err)
 	}
+	return parseTopology(data, path)
+}
+
+func parseTopology(data []byte, source string) (*Topology, error) {
 	var t Topology
 	if err := json.Unmarshal(data, &t); err != nil {
-		return nil, fmt.Errorf("parsing topology config %s: %w", path, err)
+		return nil, fmt.Errorf("parsing topology config %s: %w", source, err)
 	}
 	return &t, nil
 }
 
 // Validate checks the config is a well-formed DFA: every transition target
 // and agents-map key is a declared state, every limit refers to a real
-// (state, event) pair and a real on_exceed event, and every non-terminal
-// state is reachable from initial and has at least one way out. Returns a
-// human-readable defect list; empty means the topology is sound.
+// (state, event) pair and a real on_exceed event and can actually fire, and
+// every non-terminal state is reachable from initial and can still reach a
+// terminal state. Returns a human-readable defect list; empty means the
+// topology is sound.
 func (t *Topology) Validate() []string {
 	var errs []string
 
@@ -88,6 +101,10 @@ func (t *Topology) Validate() []string {
 		errs = append(errs, "initial state is not set")
 	}
 
+	// States are declared by initial/terminal/transitions only. The agents
+	// map is checked *against* this set, so it must not contribute to it --
+	// otherwise a typo'd agents key declares its own state into existence and
+	// the check below can never fire.
 	states := map[string]bool{}
 	if t.Initial != "" {
 		states[t.Initial] = true
@@ -100,9 +117,6 @@ func (t *Topology) Validate() []string {
 		for _, target := range evs {
 			states[target] = true
 		}
-	}
-	for s := range t.Agents {
-		states[s] = true
 	}
 
 	terminalSet := map[string]bool{}
@@ -146,8 +160,21 @@ func (t *Topology) Validate() []string {
 		if _, ok := evs[lim.OnExceed]; !ok {
 			errs = append(errs, fmt.Sprintf("limit %q on_exceed %q is not a declared event on state %q", key, lim.OnExceed, state))
 		}
+		// An on_exceed that re-fires the limited event is not an escape
+		// hatch: the transition proceeds exactly as if the limit were
+		// absent, so the loop it is meant to cap runs forever.
+		if lim.OnExceed == event {
+			errs = append(errs, fmt.Sprintf("limit %q on_exceed is the limited event itself, so the limit can never break the loop", key))
+		}
 		if lim.Max <= 0 {
 			errs = append(errs, fmt.Sprintf("limit %q has non-positive max %d", key, lim.Max))
+		}
+		// The count is derived from work rows for the state's agents. With
+		// no agents there are no rows, the count is always zero, and the
+		// limit silently never fires -- the exact failure this validation
+		// exists to prevent.
+		if len(t.Agents[state]) == 0 {
+			errs = append(errs, fmt.Sprintf("limit %q is on state %q, which has no agents; its count would always be zero and the limit would never fire", key, state))
 		}
 	}
 
@@ -167,6 +194,42 @@ func (t *Topology) Validate() []string {
 		for _, s := range sortedKeys(states) {
 			if !reached[s] {
 				errs = append(errs, fmt.Sprintf("state %q is unreachable from initial state %q", s, t.Initial))
+			}
+		}
+	}
+
+	// "Has a way out" is not the same as "can finish": a group of states that
+	// only transition among themselves satisfies the per-state check above
+	// while trapping every issue that enters it. Walk the transitions
+	// backwards from the terminal states to catch that.
+	if len(terminalSet) > 0 {
+		predecessors := map[string][]string{}
+		for s, evs := range t.Transitions {
+			for _, target := range evs {
+				predecessors[target] = append(predecessors[target], s)
+			}
+		}
+		canFinish := map[string]bool{}
+		var queue []string
+		for _, s := range t.Terminal {
+			if !canFinish[s] {
+				canFinish[s] = true
+				queue = append(queue, s)
+			}
+		}
+		for len(queue) > 0 {
+			s := queue[0]
+			queue = queue[1:]
+			for _, pred := range predecessors[s] {
+				if !canFinish[pred] {
+					canFinish[pred] = true
+					queue = append(queue, pred)
+				}
+			}
+		}
+		for _, s := range sortedKeys(states) {
+			if !canFinish[s] {
+				errs = append(errs, fmt.Sprintf("state %q cannot reach any terminal state", s))
 			}
 		}
 	}

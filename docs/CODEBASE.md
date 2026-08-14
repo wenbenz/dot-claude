@@ -16,7 +16,7 @@ flowchart LR
             am_skills["skills/ (3)"]
             am_agents["agents/ (8)"]
             am_bin["bin/automake-db<br/>(Go CLI, DFA enforcement)"]
-            am_config["config/topology.default.json"]
+            am_config["bin/automake-db/<br/>topology.default.json"]
         end
         subgraph claudetools["claudetools/"]
             ct_skills["skills/ (5)"]
@@ -35,14 +35,14 @@ Each plugin directory is self-contained (no shared root) — an earlier layout s
 |---|---|
 | `.claude-plugin/marketplace.json` | Marketplace catalog: name (`ben9`), owner, and the two plugin entries |
 | `automake/` | Spec/ticket-to-PR pipeline — see [automake/README.md](../automake/README.md) for the agent pipeline and data flow |
-| `automake/bin/automake-db/` | Go CLI: the only thing that writes pipeline state to SQLite; enforces the topology as a DFA |
-| `automake/config/topology.default.json` | Shipped default DFA (states, agents, transitions, retry limits) — see automake/README.md for the resolution order and how to extend it |
+| `automake/bin/automake-db/` | Go CLI: the only thing that writes pipeline state to SQLite; enforces the topology as a DFA. Built by the skills into a gitignored `automake-db` binary here and invoked by path, rather than `go run` per call |
+| `automake/bin/automake-db/topology.default.json` | Default DFA (states, agents, transitions, retry limits), compiled into the binary via go:embed so it resolves from any working directory — see automake/README.md for the resolution order and how to extend it |
 | `claudetools/skills/` | `create-agent`, `create-skill`, `create-rule`, `update-docs`, `bungafy` |
 | `rules/` | `french.md` — unconditional rule, loaded into every session; not part of either plugin |
 
 ## Key Components
 
-**automake** — turns a spec or ticket into a reviewed, tested, documented PR via 8 orchestrated agents (via the `start` skill) plus a durable, DFA-enforced SQLite state layer. See [automake/README.md](../automake/README.md) for the pipeline diagram, agent roles, the `automake-db` schema/CLI, and dependencies.
+**automake** — turns a spec or ticket into a reviewed, tested, documented PR via 7 orchestrated agents (via the `start` skill) plus a durable, DFA-enforced SQLite state layer. See [automake/README.md](../automake/README.md) for the pipeline diagram, agent roles, the `automake-db` schema/CLI, and dependencies.
 
 **claudetools** — authoring and maintenance tools, no agents:
 - `create-agent` / `create-skill` / `create-rule` scaffold new pipeline agents, skills, and `.claude/rules/` files respectively, each from a template.
