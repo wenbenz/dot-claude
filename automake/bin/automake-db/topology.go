@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 // Limit caps how many times an event may fire from a state before the CLI
@@ -46,7 +48,7 @@ func resolveTopologyPath(flagVal string) (string, error) {
 	if flagVal != "" {
 		return flagVal, nil
 	}
-	if env := os.Getenv("AUTOMAKE_TOPOLOGY"); env != "" {
+	if env := viper.GetString("topology"); env != "" {
 		return env, nil
 	}
 	return defaultTopologyPath()

@@ -47,15 +47,15 @@ Handoff JSON files and Markdown reports still pass between agents under `<worktr
 
 ## State: `automake-db`
 
-A Go CLI at `automake/bin/automake-db` (invoke via `go run "$CLAUDE_PLUGIN_ROOT/bin/automake-db" <args>` — flags before positional args) is the only thing that writes to the database. It backs onto a single global, cross-repo SQLite file at `~/.claude/automake/state.db` (override with `$AUTOMAKE_DB`), so pipeline history and resumability work across every repo you use it in, not just one.
+A Go CLI at `automake/bin/automake-db` (invoke via `go run "$CLAUDE_PLUGIN_ROOT/bin/automake-db" <args>`, built on cobra so flags and positional args may be interspersed in any order) is the only thing that writes to the database. It backs onto a single global, cross-repo SQLite file at `~/.claude/automake/state.db` (override with `$AUTOMAKE_DB`), so pipeline history and resumability work across every repo you use it in, not just one.
 
-**Schema** (see `automake/bin/automake-db/db.go` for the exact DDL):
+**Schema** (see `automake/bin/automake-db/schema.sql` for the exact DDL, including indices):
 
 | Table | Purpose |
 |---|---|
 | `issues` | `id`, `status`, `description`, `ticket`, `created_at` — the abstract, repo-agnostic unit of work. A ticket can outlive or span repos, so no `repo`/`branch`/`worktree`/`PR` here. |
 | `dependencies` | `id`, `dependency` — issue-to-issue blocking relationships. |
-| `work` | `run`, `id`, `agent`, `context`, `started`, `finished`, `output`, `repo`, `branch`, `worktree`, `pr` — one row per agent invocation: where it ran and what it produced. |
+| `work` | `id`, `issue_id`, `agent`, `context`, `started`, `finished`, `output`, `repo`, `branch`, `worktree`, `pr` — one row per agent invocation: where it ran and what it produced. |
 
 **Commands**:
 

@@ -2,50 +2,24 @@ package main
 
 import (
 	"database/sql"
+	_ "embed"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/spf13/viper"
 	_ "modernc.org/sqlite"
 )
 
-const schemaSQL = `
-CREATE TABLE IF NOT EXISTS issues (
-  id          INTEGER PRIMARY KEY AUTOINCREMENT,
-  status      TEXT NOT NULL,
-  description TEXT NOT NULL,
-  ticket      TEXT,
-  created_at  TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
-);
-
-CREATE TABLE IF NOT EXISTS dependencies (
-  id         INTEGER NOT NULL REFERENCES issues(id),
-  dependency INTEGER NOT NULL REFERENCES issues(id),
-  PRIMARY KEY (id, dependency),
-  CHECK (id != dependency)
-);
-
-CREATE TABLE IF NOT EXISTS work (
-  run      INTEGER PRIMARY KEY AUTOINCREMENT,
-  id       INTEGER NOT NULL REFERENCES issues(id),
-  agent    TEXT NOT NULL,
-  context  TEXT,
-  started  TEXT NOT NULL,
-  finished TEXT,
-  output   TEXT,
-  repo     TEXT NOT NULL,
-  branch   TEXT,
-  worktree TEXT,
-  pr       TEXT
-);
-`
+//go:embed schema.sql
+var schemaSQL string
 
 // dbPath resolves the SQLite state file location: $AUTOMAKE_DB, or
 // ~/.claude/automake/state.db by default. The DB is global and cross-repo
 // by design (see automake/README.md).
 func dbPath() (string, error) {
-	if p := os.Getenv("AUTOMAKE_DB"); p != "" {
+	if p := viper.GetString("db"); p != "" {
 		return p, nil
 	}
 	home, err := os.UserHomeDir()

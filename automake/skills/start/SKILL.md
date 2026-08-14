@@ -75,7 +75,7 @@ Every state change and every agent invocation goes through `automake/bin/automak
 
 - `automake-db issue list --ticket <ticket>` / `issue create --description TEXT --ticket TICKET` — resumability lookup and issue creation
 - `automake-db issue get <id>` — current status
-- `automake-db issue transition [--config PATH] <id> <event>` — the only way status changes; **flags before positional args**
+- `automake-db issue transition [--config PATH] <id> <event>` — the only way status changes
 - `automake-db work start --id ID --agent NAME --repo PATH [--branch B] [--worktree W] [--context TEXT]` — call before every agent invocation; prints a run id
 - `automake-db work finish [--output TEXT] [--pr URL] <run>` — call after every agent invocation
 - `automake-db work list --id ID` — inspect prior runs (used for resumability)
@@ -342,4 +342,3 @@ git worktree remove --force <worktree_path>
 - Always run coder and test-writer in parallel (step 2)
 - Show progress after each major step
 - Every `issue transition` call must be preceded by the `work start`/`work finish` pair for the agent whose output produced the event — the CLI's round-limit derivation depends on that history existing
-- Flags before positional arguments on every `automake-db` call (a constraint of Go's flag parser, not style)
