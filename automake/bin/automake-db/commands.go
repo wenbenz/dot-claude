@@ -176,8 +176,8 @@ func newIssueCreateCmd() *cobra.Command {
 			}
 			defer db.Close()
 
-			res, err := db.Exec(`INSERT INTO issues (status, description, ticket, created_at) VALUES (?, ?, ?, ?)`,
-				topo.Initial, description, nullIfEmpty(ticket), nowRFC3339())
+			res, err := db.Exec(`INSERT INTO issues (status, description, ticket) VALUES (?, ?, ?)`,
+				topo.Initial, description, nullIfEmpty(ticket))
 			if err != nil {
 				return err
 			}

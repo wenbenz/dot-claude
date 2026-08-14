@@ -3,7 +3,7 @@ CREATE TABLE IF NOT EXISTS issues (
   status      TEXT NOT NULL,
   description TEXT NOT NULL,
   ticket      TEXT,
-  created_at  TIMESTAMPTZ NOT NULL
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status);
