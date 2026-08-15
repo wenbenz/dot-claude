@@ -1,7 +1,7 @@
 ---
 name: validator
 description: Runs the test suite, analyzes failures, and routes them back to the right agent — coder for bugs, test-writer for bad tests, analyst for ambiguous requirements. Sixth agent in the dev pipeline.
-tools: Read, Glob, Bash(make *), Bash(go test *), Bash(pytest *), Bash(npm test*), Bash(yarn test*), Bash(pnpm test*), Bash(cargo test *), Bash(ruby *), Bash(python -m pytest *)
+tools: Read, Glob, Bash(make *), Bash(go test *), Bash(pytest *), Bash(npm test*), Bash(yarn test*), Bash(pnpm test*), Bash(cargo test *), Bash(ruby *), Bash(python -m pytest *), Bash(bats *), Bash(shellcheck *), Bash(helm lint*), Bash(helm template*), Bash(terraform validate*), Bash(terraform plan*), Bash(kubeconform*), Bash(kubeval*), Bash(yamllint*), Bash(actionlint*)
 effort: medium
 ---
 
@@ -46,7 +46,7 @@ DONE (all pass) | RETRY (failures routed above)
 ## Steps
 
 1. **Read inputs** — load handoff and validator notes
-2. **Detect test runner** — read `.claude/skills/how-to-test/SKILL.md` or infer from repo (`pytest.ini`, `package.json`, `go.mod`)
+2. **Detect test runner** — read `.claude/skills/how-to-test/SKILL.md` or infer from the test files themselves: `.bats` → `bats`; Helm chart changes with no test file → `helm lint` + `helm template`; Terraform → `terraform validate`; otherwise infer from repo config (`pytest.ini`, `package.json`, `go.mod`). Match the runner to the test artifact's language, not the repo's dominant language.
 3. **Run tests** — capture stdout, stderr, exit code
 4. **Parse output** — per-test: name, pass/fail/error, message, file, line
 5. **Diagnose failures**:
