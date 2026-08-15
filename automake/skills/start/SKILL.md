@@ -11,10 +11,11 @@ effort: max
 Orchestrate the full pipeline from technical specification to merged pull request. Every run is a durable `issues` row in the global SQLite state at `~/.claude/automake/state.db`; every agent invocation is a `work` row; `issues.status` only ever changes through `automake-db issue transition`, which enforces the configured topology as a DFA — a `(status, event)` pair not in the topology's transitions map is rejected outright, not just discouraged in prose.
 
 ```!
-echo "Repo root: $(git rev-parse --show-toplevel 2>/dev/null || echo '(not a git repo)')"
-echo "Branch:    $(git branch --show-current 2>/dev/null || echo '(unknown)')"
-go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" . \
-  && echo "automake-db: built" || echo "automake-db: BUILD FAILED — stop and show this to the user"
+if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty (likely a programmatic invocation that didn't set plugin env vars) — stop and show this to the user"
+else
+  bash "$CLAUDE_PLUGIN_ROOT/skills/start/preamble.sh"
+fi
 ```
 
 ## Should this trigger?
