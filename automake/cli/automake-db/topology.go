@@ -74,7 +74,7 @@ func defaultTopologyPath() (string, error) {
 	}
 
 	if _, thisFile, _, ok := runtime.Caller(0); ok {
-		// thisFile is .../automake/bin/automake-db/topology.go
+		// thisFile is .../automake/cli/automake-db/topology.go
 		p := filepath.Join(filepath.Dir(thisFile), "..", "..", "config", "topology.default.json")
 		if _, err := os.Stat(p); err == nil {
 			return p, nil

@@ -23,3 +23,6 @@ projects/
 plugins/
 *.local.*
 paste-cache/
+
+# Compiled automake-db binary (go build in the source dir leaves this behind)
+automake/cli/automake-db/automake-db

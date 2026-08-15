@@ -15,7 +15,7 @@ flowchart LR
         subgraph automake["automake/"]
             am_skills["skills/ (3)"]
             am_agents["agents/ (8)"]
-            am_bin["bin/automake-db<br/>(Go CLI, DFA enforcement)"]
+            am_bin["cli/automake-db<br/>(Go CLI, DFA enforcement)"]
             am_config["config/topology.default.json"]
         end
         subgraph claudetools["claudetools/"]
@@ -35,7 +35,7 @@ Each plugin directory is self-contained (no shared root) — an earlier layout s
 |---|---|
 | `.claude-plugin/marketplace.json` | Marketplace catalog: name (`ben9`), owner, and the two plugin entries |
 | `automake/` | Spec/ticket-to-PR pipeline — see [automake/README.md](../automake/README.md) for the agent pipeline and data flow |
-| `automake/bin/automake-db/` | Go CLI: the only thing that writes pipeline state to SQLite; enforces the topology as a DFA |
+| `automake/cli/automake-db/` | Go CLI: the only thing that writes pipeline state to SQLite; enforces the topology as a DFA |
 | `automake/config/topology.default.json` | Shipped default DFA (states, agents, transitions, retry limits) — see automake/README.md for the resolution order and how to extend it |
 | `claudetools/skills/` | `create-agent`, `create-skill`, `create-rule`, `update-docs`, `bungafy` |
 | `rules/` | `french.md` — unconditional rule, loaded into every session; not part of either plugin |

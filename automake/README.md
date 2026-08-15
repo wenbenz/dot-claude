@@ -47,17 +47,17 @@ Handoff JSON files and Markdown reports still pass between agents under `<worktr
 
 ## State: `automake-db`
 
-A Go CLI, source at `automake/bin/automake-db`, is the only thing that writes to the database. It is installed once and then invoked by name (`automake-db <args>` — flags before positional args):
+A Go CLI, source at `automake/cli/automake-db`, is the only thing that writes to the database. It is installed once and then invoked by name (`automake-db <args>` — flags before positional args):
 
 ```
-go install -C "$CLAUDE_PLUGIN_ROOT/bin/automake-db" .
+go install -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" .
 ```
 
 `start` runs that itself when `which automake-db` comes up empty, so there is no manual setup step; `-C` is what lets it work from any working directory, since skills run with the CWD set to the *target* repo rather than the CLI's module. Re-run the same command after a plugin update to refresh a stale binary — it is a no-op when already current. The install directory (`$(go env GOBIN)`, else `$(go env GOPATH)/bin`) has to be on `PATH`.
 
 It backs onto a single global, cross-repo SQLite file at `~/.claude/automake/state.db` (override with `$AUTOMAKE_DB`), so pipeline history and resumability work across every repo you use it in, not just one.
 
-**Schema** (see `automake/bin/automake-db/db.go` for the exact DDL):
+**Schema** (see `automake/cli/automake-db/db.go` for the exact DDL):
 
 | Table | Purpose |
 |---|---|

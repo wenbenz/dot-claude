@@ -117,7 +117,7 @@ gh issue edit <number> --repo <org/repo> --title "<title>" --body "<description 
 
 For each ticket just created or updated, register it so `start` (the dev pipeline) can find and resume it later by ticket, regardless of which system it landed in. Install the CLI first if it isn't on `PATH` yet:
 ```
-which automake-db || go install -C "$CLAUDE_PLUGIN_ROOT/bin/automake-db" .
+which automake-db || go install -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" .
 automake-db issue create --description "<ticket title + one-line summary>" --ticket <issue URL, or the .tickets/<slug>.md path in the fallback case>
 ```
 Skip this for `update` actions on tickets that already have an `issues` row (best-effort: an `issue list --ticket <id>` lookup finding an existing entry is enough — don't create a duplicate).
