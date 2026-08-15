@@ -115,21 +115,12 @@ gh issue edit <number> --repo <org/repo> --title "<title>" --body "<description 
 
 **Fallback (no integration available)** — write each ticket to `.tickets/<slug>.md` and tell the user where the files are.
 
-For each ticket just created or updated, register it so `start` (the dev pipeline) can find and resume it later by ticket, regardless of which system it landed in. Build the `automake-db` binary once before the first registration (cached, so this is cheap when it is already current):
+For each ticket just created or updated, register it so `start` (the dev pipeline) can find and resume it later by ticket, regardless of which system it landed in. Install the CLI first if it isn't on `PATH` yet:
 ```
-go build -C "$CLAUDE_PLUGIN_ROOT/bin/automake-db" -o "$CLAUDE_PLUGIN_ROOT/bin/automake-db/automake-db" .
+which automake-db || go install -C "$CLAUDE_PLUGIN_ROOT/bin/automake-db" .
+automake-db issue create --description "<ticket title + one-line summary>" --ticket <issue URL, or the .tickets/<slug>.md path in the fallback case>
 ```
-Then, per ticket:
-```
-"$CLAUDE_PLUGIN_ROOT/bin/automake-db/automake-db" issue create --description "<ticket title + one-line summary>" --ticket <ticket identity, per below>
-```
-If the build fails, tell the user and skip registration — the tickets themselves were already written, and an unregistered ticket only costs `start` its resumability lookup.
-The **ticket identity** must be byte-identical to what `start` will later look up, because `issue list --ticket` is an exact string match — a mismatch silently misses and `start` creates a second `issues` row for the same ticket:
-
-- Issue-tracker ticket → the issue URL exactly as `start` receives it as its argument.
-- Fallback file → the **absolute** path to `.tickets/<slug>.md`, not the relative one (`start` resolves a file argument to an absolute path before using it as the ticket).
-
-Skip this for `update` actions on tickets that already have an `issues` row (best-effort: an `issue list --ticket <identity>` lookup finding an existing entry is enough — don't create a duplicate).
+Skip this for `update` actions on tickets that already have an `issues` row (best-effort: an `issue list --ticket <id>` lookup finding an existing entry is enough — don't create a duplicate).
 
 ---
 

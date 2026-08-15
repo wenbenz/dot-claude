@@ -1,29 +1,14 @@
 package main
 
 import (
-	_ "embed"
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
-
-	"github.com/spf13/viper"
 )
-
-// The default topology is compiled into the binary rather than read from a
-// path next to the source. Deriving the path from runtime.Caller pins the
-// binary to the source tree it was built from, so a `go build -o ~/bin/...`,
-// a moved checkout, or a -trimpath build would leave every topology-resolving
-// command unable to find its own default. `automake-db topology show` dumps
-// this JSON, which is how you fork it into a per-repo override.
-//
-//go:embed topology.default.json
-var defaultTopologyJSON []byte
-
-// builtinTopologySource stands in for a file path in user-facing messages
-// when the topology came from the embedded default.
-const builtinTopologySource = "<built-in default>"
 
 // Limit caps how many times an event may fire from a state before the CLI
 // auto-routes to on_exceed instead. Max counts total occurrences of the
@@ -53,23 +38,53 @@ type Topology struct {
 	Limits      map[string]Limit             `json:"limits"`
 }
 
-// ResolveTopology picks the config to load: an explicit --config flag wins,
-// then $AUTOMAKE_TOPOLOGY, then the topology compiled into the binary.
-// Per-repo overrides (<repo_root>/.claude/automake/topology.json) are the
-// orchestrating skill's job to detect and pass in via --config — the CLI
-// itself stays repo-agnostic. The returned source is a path, or
-// builtinTopologySource, and is only for messages.
-func ResolveTopology(flagVal string) (string, *Topology, error) {
+// resolveTopologyPath picks the config to load: an explicit --config flag
+// wins, then $AUTOMAKE_TOPOLOGY, then the shipped default. Per-repo overrides
+// (<repo_root>/.claude/automake/topology.json) are the orchestrating skill's
+// job to detect and pass in via --config — the CLI itself stays repo-agnostic.
+func resolveTopologyPath(flagVal string) (string, error) {
 	if flagVal != "" {
-		t, err := LoadTopology(flagVal)
-		return flagVal, t, err
+		return flagVal, nil
 	}
-	if env := viper.GetString("topology"); env != "" {
-		t, err := LoadTopology(env)
-		return env, t, err
+	if env := os.Getenv("AUTOMAKE_TOPOLOGY"); env != "" {
+		return env, nil
 	}
-	t, err := parseTopology(defaultTopologyJSON, builtinTopologySource)
-	return builtinTopologySource, t, err
+	return defaultTopologyPath()
+}
+
+// defaultTopologyPath locates the shipped default config. The binary is
+// `go install`ed, so it cannot be found relative to the executable ($GOBIN is
+// nowhere near the plugin) — and the build-time source path is not reliable
+// either: it is baked in at compile time, so an installed binary keeps
+// pointing at whichever checkout built it, which breaks as soon as the plugin
+// is updated or reinstalled into a different cache directory (or was built
+// from a temp clone). $CLAUDE_PLUGIN_ROOT is the only locator that stays
+// correct across reinstalls, so it is tried first; the source-relative path
+// remains as a fallback for `go run` and local development, and is only used
+// if it actually still exists.
+func defaultTopologyPath() (string, error) {
+	var tried []string
+
+	if root := os.Getenv("CLAUDE_PLUGIN_ROOT"); root != "" {
+		p := filepath.Join(root, "config", "topology.default.json")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+		tried = append(tried, p+" (from $CLAUDE_PLUGIN_ROOT)")
+	}
+
+	if _, thisFile, _, ok := runtime.Caller(0); ok {
+		// thisFile is .../automake/bin/automake-db/topology.go
+		p := filepath.Join(filepath.Dir(thisFile), "..", "..", "config", "topology.default.json")
+		if _, err := os.Stat(p); err == nil {
+			return p, nil
+		}
+		tried = append(tried, p+" (build-time source location)")
+	}
+
+	return "", fmt.Errorf("cannot locate the default topology config; tried:\n  %s\n"+
+		"set $CLAUDE_PLUGIN_ROOT to the automake plugin directory, set $AUTOMAKE_TOPOLOGY "+
+		"to a config file, or pass --config PATH", strings.Join(tried, "\n  "))
 }
 
 func LoadTopology(path string) (*Topology, error) {
@@ -77,23 +92,18 @@ func LoadTopology(path string) (*Topology, error) {
 	if err != nil {
 		return nil, fmt.Errorf("reading topology config %s: %w", path, err)
 	}
-	return parseTopology(data, path)
-}
-
-func parseTopology(data []byte, source string) (*Topology, error) {
 	var t Topology
 	if err := json.Unmarshal(data, &t); err != nil {
-		return nil, fmt.Errorf("parsing topology config %s: %w", source, err)
+		return nil, fmt.Errorf("parsing topology config %s: %w", path, err)
 	}
 	return &t, nil
 }
 
 // Validate checks the config is a well-formed DFA: every transition target
 // and agents-map key is a declared state, every limit refers to a real
-// (state, event) pair and a real on_exceed event and can actually fire, and
-// every non-terminal state is reachable from initial and can still reach a
-// terminal state. Returns a human-readable defect list; empty means the
-// topology is sound.
+// (state, event) pair and a real on_exceed event, and every non-terminal
+// state is reachable from initial and has at least one way out. Returns a
+// human-readable defect list; empty means the topology is sound.
 func (t *Topology) Validate() []string {
 	var errs []string
 
@@ -101,10 +111,6 @@ func (t *Topology) Validate() []string {
 		errs = append(errs, "initial state is not set")
 	}
 
-	// States are declared by initial/terminal/transitions only. The agents
-	// map is checked *against* this set, so it must not contribute to it --
-	// otherwise a typo'd agents key declares its own state into existence and
-	// the check below can never fire.
 	states := map[string]bool{}
 	if t.Initial != "" {
 		states[t.Initial] = true
@@ -117,6 +123,9 @@ func (t *Topology) Validate() []string {
 		for _, target := range evs {
 			states[target] = true
 		}
+	}
+	for s := range t.Agents {
+		states[s] = true
 	}
 
 	terminalSet := map[string]bool{}
@@ -142,6 +151,13 @@ func (t *Topology) Validate() []string {
 		}
 	}
 
+	declaredAgents := map[string]bool{}
+	for _, agents := range t.Agents {
+		for _, a := range agents {
+			declaredAgents[a] = true
+		}
+	}
+
 	for _, key := range sortedLimitKeys(t.Limits) {
 		lim := t.Limits[key]
 		state, event, ok := splitLimitKey(key)
@@ -160,21 +176,22 @@ func (t *Topology) Validate() []string {
 		if _, ok := evs[lim.OnExceed]; !ok {
 			errs = append(errs, fmt.Sprintf("limit %q on_exceed %q is not a declared event on state %q", key, lim.OnExceed, state))
 		}
-		// An on_exceed that re-fires the limited event is not an escape
-		// hatch: the transition proceeds exactly as if the limit were
-		// absent, so the loop it is meant to cap runs forever.
-		if lim.OnExceed == event {
-			errs = append(errs, fmt.Sprintf("limit %q on_exceed is the limited event itself, so the limit can never break the loop", key))
-		}
 		if lim.Max <= 0 {
 			errs = append(errs, fmt.Sprintf("limit %q has non-positive max %d", key, lim.Max))
 		}
-		// The count is derived from work rows for the state's agents. With
-		// no agents there are no rows, the count is always zero, and the
-		// limit silently never fires -- the exact failure this validation
-		// exists to prevent.
+		// A limit counts work rows for the state's agents. With no agents
+		// declared the count is always 0, so the cap silently never fires and
+		// the state loops forever — the exact drift this command exists to
+		// catch, so it is an error rather than a warning.
 		if len(t.Agents[state]) == 0 {
-			errs = append(errs, fmt.Sprintf("limit %q is on state %q, which has no agents; its count would always be zero and the limit would never fire", key, state))
+			errs = append(errs, fmt.Sprintf("limit %q is on state %q, which declares no agents; its count would always be 0 and the limit could never fire", key, state))
+		}
+		// An unknown cycle_agent is never found in work history, so the cycle
+		// boundary silently falls back to the issue's creation time and the
+		// limit counts globally instead of per cycle — firing far earlier than
+		// the config says, with no error anywhere.
+		if lim.CycleAgent != "" && !declaredAgents[lim.CycleAgent] {
+			errs = append(errs, fmt.Sprintf("limit %q has cycle_agent %q, which is not an agent of any declared state", key, lim.CycleAgent))
 		}
 	}
 
@@ -194,42 +211,6 @@ func (t *Topology) Validate() []string {
 		for _, s := range sortedKeys(states) {
 			if !reached[s] {
 				errs = append(errs, fmt.Sprintf("state %q is unreachable from initial state %q", s, t.Initial))
-			}
-		}
-	}
-
-	// "Has a way out" is not the same as "can finish": a group of states that
-	// only transition among themselves satisfies the per-state check above
-	// while trapping every issue that enters it. Walk the transitions
-	// backwards from the terminal states to catch that.
-	if len(terminalSet) > 0 {
-		predecessors := map[string][]string{}
-		for s, evs := range t.Transitions {
-			for _, target := range evs {
-				predecessors[target] = append(predecessors[target], s)
-			}
-		}
-		canFinish := map[string]bool{}
-		var queue []string
-		for _, s := range t.Terminal {
-			if !canFinish[s] {
-				canFinish[s] = true
-				queue = append(queue, s)
-			}
-		}
-		for len(queue) > 0 {
-			s := queue[0]
-			queue = queue[1:]
-			for _, pred := range predecessors[s] {
-				if !canFinish[pred] {
-					canFinish[pred] = true
-					queue = append(queue, pred)
-				}
-			}
-		}
-		for _, s := range sortedKeys(states) {
-			if !canFinish[s] {
-				errs = append(errs, fmt.Sprintf("state %q cannot reach any terminal state", s))
 			}
 		}
 	}

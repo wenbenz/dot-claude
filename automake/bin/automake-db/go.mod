@@ -1,56 +1,21 @@
 module automake-db
 
-go 1.23.0
+go 1.23
 
-require (
-	github.com/spf13/cobra v1.10.2
-	github.com/spf13/viper v1.21.0
-	modernc.org/sqlite v1.34.4
-)
+require modernc.org/sqlite v1.34.4
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/fsnotify/fsnotify v1.9.0 // indirect
-	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
-	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
+	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/sagikazarmark/locafero v0.11.0 // indirect
-	github.com/sourcegraph/conc v0.3.1-0.20240121214520-5f936abd7ae8 // indirect
-	github.com/spf13/afero v1.15.0 // indirect
-	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/subosito/gotenv v1.6.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/sys v0.29.0 // indirect
-	golang.org/x/text v0.28.0 // indirect
+	golang.org/x/sys v0.22.0 // indirect
+	modernc.org/gc/v3 v3.0.0-20240107210532-573471604cb6 // indirect
 	modernc.org/libc v1.55.3 // indirect
 	modernc.org/mathutil v1.6.0 // indirect
 	modernc.org/memory v1.8.0 // indirect
+	modernc.org/strutil v1.2.0 // indirect
+	modernc.org/token v1.1.0 // indirect
 )
-
-// The replace directives below pin modernc.org/sqlite's dependency tree
-// straight to its git hosts (gitlab.com/cznic, github.com/golang) instead of
-// resolving through each package's modernc.org/golang.org vanity redirect.
-// Harmless either way; needed in network environments that block vanity
-// go-get lookups or module-proxy blob storage but allow direct git access
-// to GitHub/GitLab. `go mod tidy` will happily collapse these away on a
-// machine with unrestricted access to modernc.org.
-replace modernc.org/sqlite => gitlab.com/cznic/sqlite v1.34.4
-
-replace golang.org/x/sys => github.com/golang/sys v0.22.0
-
-replace modernc.org/gc/v3 => gitlab.com/cznic/gc/v3 v3.0.0-20240107210532-573471604cb6
-
-replace modernc.org/libc => gitlab.com/cznic/libc v1.55.3
-
-replace modernc.org/fileutil => gitlab.com/cznic/fileutil v1.3.0
-
-replace modernc.org/mathutil => gitlab.com/cznic/mathutil v1.6.0
-
-replace modernc.org/strutil => gitlab.com/cznic/strutil v1.2.0
-
-replace modernc.org/token => gitlab.com/cznic/token v1.1.0
-
-replace modernc.org/memory => gitlab.com/cznic/memory v1.8.0
