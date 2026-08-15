@@ -117,11 +117,11 @@ gh issue edit <number> --repo <org/repo> --title "<title>" --body "<description 
 
 For each ticket just created or updated, register it so `start` (the dev pipeline) can find and resume it later by ticket, regardless of which system it landed in. Build the `automake-db` binary once before the first registration (cached, so this is cheap when it is already current):
 ```
-go build -C "$CLAUDE_PLUGIN_ROOT/bin/automake-db" -o "$CLAUDE_PLUGIN_ROOT/bin/automake-db/automake-db" .
+go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" .
 ```
 Then, per ticket:
 ```
-"$CLAUDE_PLUGIN_ROOT/bin/automake-db/automake-db" issue create --description "<ticket title + one-line summary>" --ticket <ticket identity, per below>
+"$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" issue create --description "<ticket title + one-line summary>" --ticket <ticket identity, per below>
 ```
 If the build fails, tell the user and skip registration — the tickets themselves were already written, and an unregistered ticket only costs `start` its resumability lookup.
 The **ticket identity** must be byte-identical to what `start` will later look up, because `issue list --ticket` is an exact string match — a mismatch silently misses and `start` creates a second `issues` row for the same ticket:
