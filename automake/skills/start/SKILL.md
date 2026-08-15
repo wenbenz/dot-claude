@@ -13,8 +13,13 @@ Orchestrate the full pipeline from technical specification to merged pull reques
 ```!
 if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
   echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty (likely a programmatic invocation that didn't set plugin env vars) — stop and show this to the user"
+elif [ -x "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" ]; then
+  echo "automake-db: already built"
+elif ! command -v go >/dev/null 2>&1; then
+  echo "automake-db: BUILD FAILED — go not found on \$PATH — stop and show this to the user"
 else
-  bash "$CLAUDE_PLUGIN_ROOT/skills/start/preamble.sh"
+  go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" . \
+    && echo "automake-db: built" || echo "automake-db: BUILD FAILED — stop and show this to the user"
 fi
 ```
 
@@ -80,7 +85,7 @@ Every state change and every agent invocation goes through the `automake-db` bin
 "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" <args>
 ```
 
-The setup block at the top of this skill builds that binary before anything else runs; the pipeline makes ~15 calls per run, and rebuilding from source on each one (`go run`) costs about 2.5s a call for no benefit. `go build` is cached, so re-running it when nothing changed is cheap, and running it every time is what keeps the binary current after a plugin update. If the build fails, **stop and show the user** — every step below depends on it. Do not fall back to `go run`.
+The setup block at the top of this skill builds that binary before anything else runs, but only if it isn't already there — the pipeline makes ~15 calls per run, and re-invoking `go build` on every single one costs about 2.5s a call for no benefit. A plugin update lands in a new cache directory (its path is content-addressed), so there's no stale-binary case to worry about: a rebuild only happens the first time a given checkout runs. If the build fails, **stop and show the user** — every step below depends on it. Do not fall back to `go run`.
 
 It is the only thing that writes `issues.status` — never update pipeline progress by editing files or by reasoning about it in prose. See `automake/README.md` for the full command reference. The commands used below:
 
