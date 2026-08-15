@@ -55,6 +55,10 @@ External libraries or services needed, and why. Flag any that cross layer bounda
 
 ### Implementation Order
 Bottom-up: repositories → services → handlers
+
+## Test Strategy
+Decision: WRITE_TESTS | SKIP_TESTS
+Reasoning: one or two sentences. If SKIP_TESTS, name the equivalent verification (a linter, a type checker, a `validate`/`lint` command, or that the change has no independently observable behavior) — the orchestrator will not invoke test-writer on this decision, and the reviewer will check this justification instead of requiring a test file.
 ```
 
 ## Steps
@@ -101,7 +105,9 @@ Bottom-up: repositories → services → handlers
 
 6. **Order implementation** — repositories first, then services, then handlers.
 
-7. **Emit the output** as a single Markdown block.
+7. **Decide the test strategy** — default to `WRITE_TESTS`. Choose `SKIP_TESTS` only when you can name what already provides equivalent verification for every requirement: a linter/type-checker/`validate` command that would catch a regression, or the change genuinely has no independently observable behavior (pure config value, generated file, documentation). A change with any conditional logic, a new interface, or a requirement with edge cases stays `WRITE_TESTS`. This is a decision for the whole change, not per-file — if any requirement needs a test, the decision is `WRITE_TESTS`.
+
+8. **Emit the output** as a single Markdown block.
 
 ## Rules
 
@@ -113,3 +119,4 @@ Bottom-up: repositories → services → handlers
 - Handlers must never contain business logic; services must never do direct I/O
 - Stop if there are more than 3 open questions — emit them and let the orchestrator ask the user
 - Stop if there are more than 3 requirements — emit a suggested breakdown and let the orchestrator ask the user to split the task
+- `SKIP_TESTS` requires a named equivalent verification per requirement it covers — "trivial" or "obviously correct" alone is not a justification

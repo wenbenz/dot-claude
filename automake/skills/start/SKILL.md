@@ -198,7 +198,9 @@ Call `planner` with `<pipeline_dir>/handoff_planner.json`. Write output to `<pip
 
 ---
 
-### 2. Coder + Test Writer (parallel)
+### 2. Coder + Test Writer (parallel, test-writer conditional on the planner's Test Strategy)
+
+Read the `## Test Strategy` `Decision:` line from `<pipeline_dir>/plan.md`. It is `WRITE_TESTS` or `SKIP_TESTS`. **If the field is missing, malformed, or ambiguous, treat it as `WRITE_TESTS`** — never silently skip tests because the field couldn't be parsed.
 
 Write `<pipeline_dir>/handoff_coder.json`:
 ```json
@@ -209,7 +211,12 @@ Write `<pipeline_dir>/handoff_coder.json`:
 }
 ```
 
-Write `<pipeline_dir>/handoff_test_writer.json`:
+Start coder's run:
+```
+coder_run=$("$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work start --id <issue_id> --agent coder --repo <repo_root> --branch <branch_name> --worktree <worktree_path> --context <pipeline_dir>/handoff_coder.json)
+```
+
+**If `WRITE_TESTS`** — write `<pipeline_dir>/handoff_test_writer.json`:
 ```json
 {
   "requirements_file": "<pipeline_dir>/plan.md",
@@ -217,10 +224,8 @@ Write `<pipeline_dir>/handoff_test_writer.json`:
   "repo_root": "<repo_root>"
 }
 ```
-
-Start both runs before calling either agent:
+and start test-writer's run *before* calling either agent, so both are in flight together:
 ```
-coder_run=$("$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work start --id <issue_id> --agent coder --repo <repo_root> --branch <branch_name> --worktree <worktree_path> --context <pipeline_dir>/handoff_coder.json)
 testwriter_run=$("$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work start --id <issue_id> --agent test-writer --repo <repo_root> --branch <branch_name> --worktree <worktree_path> --context <pipeline_dir>/handoff_test_writer.json)
 ```
 Call `coder` and `test-writer` simultaneously. Save coder's file list as `code_files`; test-writer's list as `test_files` and notes as `validator_notes`.
@@ -229,7 +234,12 @@ Call `coder` and `test-writer` simultaneously. Save coder's file list as `code_f
 "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work finish --output "<test-writer's Test Files Written summary>" $testwriter_run
 ```
 
-Once **both** finish (join point — `coding` is one state covering both agents):
+**If `SKIP_TESTS`** — do not start or call test-writer at all (no `work start` row for an agent that didn't run). Call only `coder`. Set `test_files = []` and `validator_notes` to the planner's Test Strategy `Reasoning:` line verbatim, so the validator and reviewer see *why* there are no tests instead of guessing.
+```
+"$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work finish --output "<coder's Files Written/Modified summary>" $coder_run
+```
+
+Once coder (and test-writer, if it ran) finish (join point — `coding` is one state covering both agents, whether or not test-writer participated this round):
 ```
 "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" issue transition <issue_id> success
 ```
