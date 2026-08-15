@@ -1,7 +1,7 @@
 ---
 name: validator
 description: Runs the test suite, analyzes failures, and routes them back to the right agent — coder for bugs, test-writer for bad tests, analyst for ambiguous requirements. Sixth agent in the dev pipeline.
-tools: Read, Glob, Bash(make *), Bash(go test *), Bash(pytest *), Bash(npm test*), Bash(yarn test*), Bash(pnpm test*), Bash(cargo test *), Bash(ruby *), Bash(python -m pytest *)
+tools: Read, Glob, Bash(make *), Bash(go test *), Bash(pytest *), Bash(npm test*), Bash(yarn test*), Bash(pnpm test*), Bash(cargo test *), Bash(ruby *), Bash(python -m pytest *), Bash(bats *), Bash(shellcheck *), Bash(helm lint*), Bash(helm template*), Bash(terraform validate*), Bash(terraform plan*), Bash(kubeconform*), Bash(kubeval*), Bash(yamllint*), Bash(actionlint*)
 effort: medium
 ---
 
@@ -45,8 +45,9 @@ DONE (all pass) | RETRY (failures routed above)
 
 ## Steps
 
-1. **Read inputs** — load handoff and validator notes
-2. **Detect test runner** — read `.claude/skills/how-to-test/SKILL.md` or infer from repo (`pytest.ini`, `package.json`, `go.mod`)
+1. **Read inputs** — load handoff and validator notes. **If `test_files` is empty and `validator_notes` carries a planner `SKIP_TESTS` justification, this is expected, not a failure to run** — see step 2a.
+2. **Detect test runner** — read `.claude/skills/how-to-test/SKILL.md` or infer from the test files themselves: `.bats` → `bats`; Helm chart changes with no test file → `helm lint` + `helm template`; Terraform → `terraform validate`; otherwise infer from repo config (`pytest.ini`, `package.json`, `go.mod`). Match the runner to the test artifact's language, not the repo's dominant language.
+   - **2a. Empty `test_files` with a `SKIP_TESTS` justification**: run whatever equivalent verification the justification named (a lint/validate command) if one applies to the changed files; otherwise there is nothing to run. Either way this is `Status: PASS`, `Next Step: DONE` with a one-line note pointing to the justification — never route this to `test-writer` as "can't run at all" (that rule is for a runner that was expected but is broken or missing, not for a deliberate no-tests decision).
 3. **Run tests** — capture stdout, stderr, exit code
 4. **Parse output** — per-test: name, pass/fail/error, message, file, line
 5. **Diagnose failures**:
@@ -60,6 +61,6 @@ DONE (all pass) | RETRY (failures routed above)
 
 - Bash scoped to test runners only — no writes, deletes, arbitrary commands
 - Never modify source or test files
-- Can't run at all → route to `test-writer`
+- Can't run at all → route to `test-writer` (unless `test_files` is empty by a `SKIP_TESTS` decision — see step 2a, that's not a failure)
 - Same failure in 3+ tests → systemic bug, flag it
 - Max 3 retry cycles; escalate to user if still failing

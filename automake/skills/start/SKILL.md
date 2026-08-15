@@ -11,10 +11,16 @@ effort: max
 Orchestrate the full pipeline from technical specification to merged pull request. Every run is a durable `issues` row in the global SQLite state at `~/.claude/automake/state.db`; every agent invocation is a `work` row; `issues.status` only ever changes through `automake-db issue transition`, which enforces the configured topology as a DFA — a `(status, event)` pair not in the topology's transitions map is rejected outright, not just discouraged in prose.
 
 ```!
-echo "Repo root: $(git rev-parse --show-toplevel 2>/dev/null || echo '(not a git repo)')"
-echo "Branch:    $(git branch --show-current 2>/dev/null || echo '(unknown)')"
-go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" . \
-  && echo "automake-db: built" || echo "automake-db: BUILD FAILED — stop and show this to the user"
+if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty (likely a programmatic invocation that didn't set plugin env vars) — stop and show this to the user"
+elif [ -x "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" ]; then
+  echo "automake-db: already built"
+elif ! command -v go >/dev/null 2>&1; then
+  echo "automake-db: BUILD FAILED — go not found on \$PATH — stop and show this to the user"
+else
+  go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" . \
+    && echo "automake-db: built" || echo "automake-db: BUILD FAILED — stop and show this to the user"
+fi
 ```
 
 ## Should this trigger?
@@ -79,7 +85,7 @@ Every state change and every agent invocation goes through the `automake-db` bin
 "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" <args>
 ```
 
-The setup block at the top of this skill builds that binary before anything else runs; the pipeline makes ~15 calls per run, and rebuilding from source on each one (`go run`) costs about 2.5s a call for no benefit. `go build` is cached, so re-running it when nothing changed is cheap, and running it every time is what keeps the binary current after a plugin update. If the build fails, **stop and show the user** — every step below depends on it. Do not fall back to `go run`.
+The setup block at the top of this skill builds that binary before anything else runs, but only if it isn't already there — the pipeline makes ~15 calls per run, and re-invoking `go build` on every single one costs about 2.5s a call for no benefit. A plugin update lands in a new cache directory (its path is content-addressed), so there's no stale-binary case to worry about: a rebuild only happens the first time a given checkout runs. If the build fails, **stop and show the user** — every step below depends on it. Do not fall back to `go run`.
 
 It is the only thing that writes `issues.status` — never update pipeline progress by editing files or by reasoning about it in prose. See `automake/README.md` for the full command reference. The commands used below:
 
@@ -192,7 +198,9 @@ Call `planner` with `<pipeline_dir>/handoff_planner.json`. Write output to `<pip
 
 ---
 
-### 2. Coder + Test Writer (parallel)
+### 2. Coder + Test Writer (parallel, test-writer conditional on the planner's Test Strategy)
+
+Read the `## Test Strategy` `Decision:` line from `<pipeline_dir>/plan.md`. It is `WRITE_TESTS` or `SKIP_TESTS`. **If the field is missing, malformed, or ambiguous, treat it as `WRITE_TESTS`** — never silently skip tests because the field couldn't be parsed.
 
 Write `<pipeline_dir>/handoff_coder.json`:
 ```json
@@ -203,7 +211,12 @@ Write `<pipeline_dir>/handoff_coder.json`:
 }
 ```
 
-Write `<pipeline_dir>/handoff_test_writer.json`:
+Start coder's run:
+```
+coder_run=$("$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work start --id <issue_id> --agent coder --repo <repo_root> --branch <branch_name> --worktree <worktree_path> --context <pipeline_dir>/handoff_coder.json)
+```
+
+**If `WRITE_TESTS`** — write `<pipeline_dir>/handoff_test_writer.json`:
 ```json
 {
   "requirements_file": "<pipeline_dir>/plan.md",
@@ -211,10 +224,8 @@ Write `<pipeline_dir>/handoff_test_writer.json`:
   "repo_root": "<repo_root>"
 }
 ```
-
-Start both runs before calling either agent:
+and start test-writer's run *before* calling either agent, so both are in flight together:
 ```
-coder_run=$("$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work start --id <issue_id> --agent coder --repo <repo_root> --branch <branch_name> --worktree <worktree_path> --context <pipeline_dir>/handoff_coder.json)
 testwriter_run=$("$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work start --id <issue_id> --agent test-writer --repo <repo_root> --branch <branch_name> --worktree <worktree_path> --context <pipeline_dir>/handoff_test_writer.json)
 ```
 Call `coder` and `test-writer` simultaneously. Save coder's file list as `code_files`; test-writer's list as `test_files` and notes as `validator_notes`.
@@ -223,7 +234,12 @@ Call `coder` and `test-writer` simultaneously. Save coder's file list as `code_f
 "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work finish --output "<test-writer's Test Files Written summary>" $testwriter_run
 ```
 
-Once **both** finish (join point — `coding` is one state covering both agents):
+**If `SKIP_TESTS`** — do not start or call test-writer at all (no `work start` row for an agent that didn't run). Call only `coder`. Set `test_files = []` and `validator_notes` to the planner's Test Strategy `Reasoning:` line verbatim, so the validator and reviewer see *why* there are no tests instead of guessing.
+```
+"$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" work finish --output "<coder's Files Written/Modified summary>" $coder_run
+```
+
+Once coder (and test-writer, if it ran) finish (join point — `coding` is one state covering both agents, whether or not test-writer participated this round):
 ```
 "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" issue transition <issue_id> success
 ```

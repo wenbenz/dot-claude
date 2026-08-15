@@ -44,7 +44,9 @@ Anything the validator needs to know to run the tests correctly (env vars, fixtu
 
 2. **Read repo test conventions** — look for:
    - `.claude/skills/how-to-test/SKILL.md` — if it exists, read it and follow it strictly
-   - If absent, infer conventions from existing test files in the repo
+   - If absent, infer conventions from existing test files *for the same language/paradigm as the code under test*. Do not default to the repo's dominant programming language when the changed code isn't written in it — in particular:
+     - **Shell scripts** (`.sh`, `.bash`): test with a shell-native framework already used in the repo (e.g. bats-core, shunit2) if one exists; otherwise write a small dependency-free bash assertion script (subprocess the script under test, assert on stdout/stderr/exit code) rather than porting the logic into another language's test suite just because that's what the rest of the repo happens to use.
+     - **Configuration / IaC** (Helm charts, Kubernetes manifests, Terraform, CI workflow YAML, etc.): prefer the paradigm's own validation tooling (`helm lint` + `helm template` snapshot diffs, `kubeconform`/`kubeval`, `terraform validate`/`plan`, `yamllint`, `actionlint`) over writing tests in a general-purpose language. A rendered-output diff or a clean lint/validate pass is sufficient coverage for this class of change — don't invent a test framework for it.
 
 3. **Read the source code** — understand the actual function signatures, types, and module structure before writing tests.
 
@@ -62,6 +64,7 @@ Anything the validator needs to know to run the tests correctly (env vars, fixtu
 
 ## Rules
 
+- Match test language/tooling to the artifact under test (shell → shell test framework or a plain bash assertion script; IaC/config → the paradigm's native validators/linters), never to the repo's dominant programming language by default
 - Follow the repo's `how-to-test` skill if present — it overrides any default style preference
 - Every test must be runnable in isolation (no shared mutable state between tests)
 - Test names must make the failure self-explanatory without reading the test body
