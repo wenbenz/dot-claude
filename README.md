@@ -18,11 +18,11 @@ Turns a spec or ticket into reviewed, tested, documented code with a pull reques
 
 | Skill | Does |
 |---|---|
-| `/automake:dev-pipeline` | Runs the full pipeline: plan → code + tests → validate → review → document → open PR |
+| `/automake:start` | Runs the full pipeline: plan → code + tests → validate → review → document → open PR. Also triggers proactively for feature/bugfix-shaped requests without being invoked by name. |
 | `/automake:plan-tickets` | Turns raw input (issues, docs, ad-hoc text) into structured tickets |
 | `/automake:create-pr` | Branch + worktree + push + open PR, standalone |
 
-Backed by 8 pipeline agents (`planner`, `coder`, `test-writer`, `validator`, `reviewer`, `doc-patcher`, `pr-agent`, `ticket-analyst`) — see [automake/README.md](automake/README.md) for how they fit together.
+Backed by 8 pipeline agents (`planner`, `coder`, `test-writer`, `validator`, `reviewer`, `doc-patcher`, `pr-agent`, `ticket-analyst`) and a durable, DFA-enforced SQLite state layer (`automake-db`) — see [automake/README.md](automake/README.md) for how they fit together.
 
 ### claudetools
 
