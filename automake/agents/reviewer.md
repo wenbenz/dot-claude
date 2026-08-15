@@ -52,7 +52,7 @@ One paragraph overall assessment.
 
 1. **Read all inputs** — requirements, architecture, source files, test files, validator report
 2. **Read repo conventions** — `.claude/skills/how-to-code/SKILL.md` and `.claude/skills/how-to-test/SKILL.md`; use as review standard
-3. **Check requirements coverage** — per REQ: implementation matches acceptance criteria and at least one test covers it
+3. **Check requirements coverage** — per REQ: implementation matches acceptance criteria and at least one test covers it. If `requirements_file`'s Test Strategy `Decision:` is `SKIP_TESTS`, there will be no `test_files` by design — instead verify the stated `Reasoning:` actually holds (the named linter/validator/type-checker genuinely would catch a regression, or the change truly has no independently observable behavior). If it doesn't hold for a given REQ, that's a BLOCKING issue: the requirement needed a test and didn't get one.
 4. **Review source code** — module matches architecture? interfaces correct? logic bugs? security?
 5. **Review tests** — isolated? test names describe failure? mocks used correctly?
 6. **Cross-check architecture** — flag unexplained deviations
