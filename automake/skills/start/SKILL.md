@@ -11,9 +11,6 @@ effort: max
 Orchestrate the full pipeline from technical specification to merged pull request. Every run is a durable `issues` row in the global SQLite state at `~/.claude/automake/state.db`; every agent invocation is a `work` row; `issues.status` only ever changes through `automake-db issue transition`, which enforces the configured topology as a DFA — a `(status, event)` pair not in the topology's transitions map is rejected outright, not just discouraged in prose.
 
 ```!
-BINARY="${CLAUDE_PLUGIN_ROOT:-}/cli/automake-db/automake-db"
-MARKER="${CLAUDE_PLUGIN_ROOT:-}/cli/automake-db/.build_marker"
-
 # check_redundant_build MARKER_PATH BINARY_PATH
 # Only called from the branch where BINARY_PATH is about to be (re)built — i.e. it
 # was NOT already present. Returns 0 (suspicious/redundant) only when a marker from
@@ -37,8 +34,49 @@ record_build_marker() {
   printf '%s\n%s\n' "$binary_path" "$size_mtime" > "$marker_path"
 }
 
+# infer_plugin_root JSON_PATH PLUGIN_KEY
+# Given installed_plugins.json's path and a "<plugin>@<marketplace>" key, prints
+# that key's first installPath to stdout and returns 0, or prints nothing and
+# returns 1 on any failure (file missing/unreadable, no matching key, or
+# malformed/truncated JSON with no extractable installPath after the key).
+# Pure: never reads $HOME/$CLAUDE_PLUGIN_ROOT itself, only its arguments — takes
+# no dependency on ambient state so it stays independently testable.
+# Relies on installed_plugins.json being one-field-per-line (as Claude Code
+# itself writes it) — no jq/python3, awk/sed/grep only.
+infer_plugin_root() {
+  json_path="$1"
+  plugin_key="$2"
+  [ -r "$json_path" ] || return 1
+  result=$(awk -v key="\"$plugin_key\"" '
+    index($0, key) { found=1; next }
+    found && match($0, /"installPath"[[:space:]]*:[[:space:]]*"[^"]*"/) {
+      val = substr($0, RSTART, RLENGTH)
+      sub(/^"installPath"[[:space:]]*:[[:space:]]*"/, "", val)
+      sub(/"$/, "", val)
+      print val
+      exit
+    }
+  ' "$json_path" 2>/dev/null)
+  [ -n "$result" ] || return 1
+  printf '%s\n' "$result"
+  return 0
+}
+
+INSTALLED_PLUGINS_JSON="$HOME/.claude/plugins/installed_plugins.json"
+PLUGIN_KEY="automake@ben9"
+
 if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty (likely a programmatic invocation that didn't set plugin env vars) — stop and show this to the user, and invoke healer (trigger=missing_env_var, issue_id=null, context={var_name: CLAUDE_PLUGIN_ROOT}) per ## Self-Healing"
+  if INFERRED_PLUGIN_ROOT=$(infer_plugin_root "$INSTALLED_PLUGINS_JSON" "$PLUGIN_KEY"); then
+    export CLAUDE_PLUGIN_ROOT="$INFERRED_PLUGIN_ROOT"
+    echo "automake-db: inferred \$CLAUDE_PLUGIN_ROOT -> $CLAUDE_PLUGIN_ROOT (from $INSTALLED_PLUGINS_JSON)"
+  fi
+fi
+
+BINARY="${CLAUDE_PLUGIN_ROOT:-}/cli/automake-db/automake-db"
+MARKER="${CLAUDE_PLUGIN_ROOT:-}/cli/automake-db/.build_marker"
+
+if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty, and inference from $INSTALLED_PLUGINS_JSON also failed (file missing/unreadable, or no \"$PLUGIN_KEY\" entry with an installPath) — stop and show this to the user, and invoke healer (trigger=missing_env_var, issue_id=null, context={var_name: CLAUDE_PLUGIN_ROOT, installed_plugins_json: $INSTALLED_PLUGINS_JSON, plugin_key: $PLUGIN_KEY}) per ## Self-Healing"
 elif [ -x "$BINARY" ]; then
   echo "automake-db: already built"
 elif ! command -v go >/dev/null 2>&1; then
@@ -404,7 +442,7 @@ git worktree remove --force <worktree_path>
 | No argument and no conversation context | Stop, ask user |
 | Worktree creation fails | Stop, tell user |
 | `issue transition`/`work start`/`work finish` exits nonzero | Stop, show the CLI's stderr — this is an event-mapping bug, not a normal outcome — and invoke `healer` (`trigger=cli_error`, `context={cmd, stderr, exit_code, state}`) before stopping, per `## Self-Healing` (non-blocking; doesn't delay the stop) |
-| `CLAUDE_PLUGIN_ROOT` unset/empty (setup block) | Stop, show the message — and invoke `healer` (`trigger=missing_env_var`, `issue_id=null`, `context={var_name}`) per `## Self-Healing`; there's no `pipeline_dir`/`issue_id` yet, so show `healer`'s report to the user directly alongside the stop message |
+| `CLAUDE_PLUGIN_ROOT` unset/empty and inference from `installed_plugins.json` also fails (setup block) | The setup block first tries to self-heal inline by inferring `CLAUDE_PLUGIN_ROOT` from `$HOME/.claude/plugins/installed_plugins.json`'s `automake@ben9` entry — this only reaches `healer` when that inference itself fails (file missing/unreadable/no matching entry). Stop, show the message — and invoke `healer` (`trigger=missing_env_var`, `issue_id=null`, `context={var_name, installed_plugins_json, plugin_key}`) per `## Self-Healing`; there's no `pipeline_dir`/`issue_id` yet, so show `healer`'s report to the user directly alongside the stop message |
 | Planner emits `ERROR` or >3 open questions | `issue transition <id> error` → `blocked`; show to user |
 | Planner emits `BREAKDOWN REQUIRED` | `issue transition <id> breakdown_required` → `blocked`; show breakdown |
 | Validator fails 5 rounds | Auto-routed to `failed` by the CLI; show last report |
@@ -423,7 +461,7 @@ git worktree remove --force <worktree_path>
 | Trigger | Fires when | `issue_id` |
 |---|---|---|
 | `cli_error` | `issue transition`/`work start`/`work finish` exits nonzero | current issue, or `null` if the failing call was `issue create` itself |
-| `missing_env_var` | `CLAUDE_PLUGIN_ROOT` (or another orchestrator-required var) is unset/empty in the setup block | `null` (no issue exists yet) |
+| `missing_env_var` | `CLAUDE_PLUGIN_ROOT` (or another orchestrator-required var) is unset/empty in the setup block **and** the setup block's own inline inference of it from `$HOME/.claude/plugins/installed_plugins.json` (the `automake@ben9` entry's `installPath`) also failed — this is the post-inference-failure fallback, not the first line of defense; a successful inference self-heals inline and never reaches `healer` | `null` (no issue exists yet) |
 | `redundant_build` | the setup block reports `built` (not `already built`) and `check_redundant_build` finds a prior successful build already recorded for the same binary path (see the setup block's `.build_marker` above) | current issue, or `null` before one exists |
 | `bad_directive` | an agent's output is malformed/self-contradictory in a way plausibly traceable to ambiguous wording in its own `.md`, not already covered by an `ERROR`/DFA-event row above | current issue |
 | `user_dissatisfaction` | the user rejects the PR, asks for a redo, or otherwise explicitly complains about quality — as distinct from a plain "also add X" follow-up, which is scope expansion, not dissatisfaction, and must never trigger `healer` | current issue, or the last known issue if the pipeline already finished |

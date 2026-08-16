@@ -18,7 +18,7 @@ Diagnose one reported friction condition and either apply a low-risk fix, propos
 - `plugin_root` — `$CLAUDE_PLUGIN_ROOT` value seen by the caller
 - `context` — trigger-specific object:
   - `cli_error`: `{cmd, stderr, exit_code, state}`
-  - `missing_env_var`: `{var_name}`
+  - `missing_env_var`: `{var_name, installed_plugins_json, plugin_key}` — `installed_plugins_json` is the path the setup block already tried to infer `var_name` from, `plugin_key` is the `"<plugin>@<marketplace>"` key it looked up; this trigger only fires after that inline inference already failed
   - `redundant_build`: `{prior_marker, current_build}`
   - `bad_directive`: `{agent_name, agent_md_path, handoff, raw_output}`
   - `user_dissatisfaction`: `{complaint_text, reviewer_report, pr_url, recent_work_rows}`
@@ -69,7 +69,7 @@ If `issue_id` is null, write this report to `report_path` (or a path under `plug
 
 5. **Diagnose per trigger**:
    - `cli_error` — read `context.cmd`/`stderr`/`exit_code`/`state` against `topology.default.json` and the relevant `SKILL.md` step; find the mismatch (wrong event name, stale state assumption, malformed argument) rather than restating the stderr.
-   - `missing_env_var` — confirm `context.var_name` is genuinely unset per the caller's description. `healer` cannot make an env var exist; this is almost always `NO_ACTION` or `ESCALATE` unless a `SKILL.md`/agent file references the wrong variable name, which is a legitimate wording fix.
+   - `missing_env_var` — this trigger is the post-inference-failure fallback, not the first line of defense: the setup block already tried to infer `context.var_name` from `context.installed_plugins_json`'s `context.plugin_key` entry before giving up, so confirm both that `context.var_name` is genuinely unset *and* that the inference attempt genuinely had nothing to work with (read `context.installed_plugins_json` yourself if it exists — missing file, unreadable, or no matching `plugin_key` entry are all expected/benign; a well-formed matching entry that the setup block still failed to pick up is the interesting case). `healer` cannot make an env var exist or repair a user's plugin install; this is almost always `NO_ACTION` or `ESCALATE` unless a `SKILL.md`/agent file references the wrong variable name or the wrong `plugin_key`, which is a legitimate wording fix.
    - `redundant_build` — compare `context.prior_marker` and `context.current_build` (paths, timestamps). If they point at the same binary path and nothing plausibly removed it between runs, that is worth a `PROPOSED investigation` note; a same-run race (two pipelines building the same fresh cache) is informational only — `NO_ACTION`, not a bug. Never treat this trigger as fixable by editing `.go` files directly (that would need real behavior change, always `PROPOSED`, never applied).
    - `bad_directive` — read `context.agent_md_path` next to `context.handoff` and `context.raw_output`; find the specific contradictory or ambiguous instruction that plausibly produced the bad output. A single ambiguous phrase is a legitimate low-risk wording fix.
    - `user_dissatisfaction` — read `context.complaint_text`, `context.reviewer_report`, and `context.recent_work_rows`. Distinguish a systemic instruction gap (supporting pattern across multiple issues/work rows) from a one-off judgment call, and from scope expansion ("also add X") which is not dissatisfaction at all — if it's scope expansion or a one-off, `NO_ACTION`. Never attempt to redo the disputed work yourself; only look for a doc-level gap.
