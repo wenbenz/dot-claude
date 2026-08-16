@@ -11,15 +11,53 @@ effort: max
 Orchestrate the full pipeline from technical specification to merged pull request. Every run is a durable `issues` row in the global SQLite state at `~/.claude/automake/state.db`; every agent invocation is a `work` row; `issues.status` only ever changes through `automake-db issue transition`, which enforces the configured topology as a DFA — a `(status, event)` pair not in the topology's transitions map is rejected outright, not just discouraged in prose.
 
 ```!
+BINARY="${CLAUDE_PLUGIN_ROOT:-}/cli/automake-db/automake-db"
+MARKER="${CLAUDE_PLUGIN_ROOT:-}/cli/automake-db/.build_marker"
+
+# check_redundant_build MARKER_PATH BINARY_PATH
+# Only called from the branch where BINARY_PATH is about to be (re)built — i.e. it
+# was NOT already present. Returns 0 (suspicious/redundant) only when a marker from
+# an earlier successful build already exists AND names this exact binary path;
+# returns 1 (not redundant — the normal first-build case) when there is no marker
+# yet, or it names a different path.
+check_redundant_build() {
+  marker_path="$1"
+  binary_path="$2"
+  [ -f "$marker_path" ] || return 1
+  recorded_path=$(sed -n '1p' "$marker_path" 2>/dev/null)
+  [ "$recorded_path" = "$binary_path" ] || return 1
+  return 0
+}
+
+# record_build_marker MARKER_PATH BINARY_PATH — call only after a successful build.
+record_build_marker() {
+  marker_path="$1"
+  binary_path="$2"
+  size_mtime=$(stat -c '%s %Y' "$binary_path" 2>/dev/null || stat -f '%z %m' "$binary_path" 2>/dev/null)
+  printf '%s\n%s\n' "$binary_path" "$size_mtime" > "$marker_path"
+}
+
 if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty (likely a programmatic invocation that didn't set plugin env vars) — stop and show this to the user"
-elif [ -x "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" ]; then
+  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty (likely a programmatic invocation that didn't set plugin env vars) — stop and show this to the user, and invoke healer (trigger=missing_env_var, issue_id=null, context={var_name: CLAUDE_PLUGIN_ROOT}) per ## Self-Healing"
+elif [ -x "$BINARY" ]; then
   echo "automake-db: already built"
 elif ! command -v go >/dev/null 2>&1; then
   echo "automake-db: BUILD FAILED — go not found on \$PATH — stop and show this to the user"
 else
-  go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" . \
-    && echo "automake-db: built" || echo "automake-db: BUILD FAILED — stop and show this to the user"
+  if check_redundant_build "$MARKER" "$BINARY"; then
+    REDUNDANT_BUILD=1
+  else
+    REDUNDANT_BUILD=0
+  fi
+  if go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$BINARY" .; then
+    echo "automake-db: built"
+    record_build_marker "$MARKER" "$BINARY"
+    if [ "$REDUNDANT_BUILD" = "1" ]; then
+      echo "automake-db: redundant build — a prior successful build for this exact binary path was already recorded, but a rebuild fired anyway — invoke healer (trigger=redundant_build, issue_id=<current issue or null>, context={prior_marker: $MARKER, current_build: $BINARY}) per ## Self-Healing; non-blocking, pipeline continues"
+    fi
+  else
+    echo "automake-db: BUILD FAILED — stop and show this to the user"
+  fi
 fi
 ```
 
@@ -365,13 +403,51 @@ git worktree remove --force <worktree_path>
 | Spec file not found | Stop, tell user |
 | No argument and no conversation context | Stop, ask user |
 | Worktree creation fails | Stop, tell user |
-| `issue transition` exits nonzero | Stop, show the CLI's stderr — this is an event-mapping bug, not a normal outcome |
+| `issue transition`/`work start`/`work finish` exits nonzero | Stop, show the CLI's stderr — this is an event-mapping bug, not a normal outcome — and invoke `healer` (`trigger=cli_error`, `context={cmd, stderr, exit_code, state}`) before stopping, per `## Self-Healing` (non-blocking; doesn't delay the stop) |
+| `CLAUDE_PLUGIN_ROOT` unset/empty (setup block) | Stop, show the message — and invoke `healer` (`trigger=missing_env_var`, `issue_id=null`, `context={var_name}`) per `## Self-Healing`; there's no `pipeline_dir`/`issue_id` yet, so show `healer`'s report to the user directly alongside the stop message |
 | Planner emits `ERROR` or >3 open questions | `issue transition <id> error` → `blocked`; show to user |
 | Planner emits `BREAKDOWN REQUIRED` | `issue transition <id> breakdown_required` → `blocked`; show breakdown |
 | Validator fails 5 rounds | Auto-routed to `failed` by the CLI; show last report |
 | Reviewer requests changes twice | Auto-routed to `failed` by the CLI; show review |
 | pr-agent reports FAIL | `issue transition <id> ci_max_rounds` → `failed`; show CI log |
 | Any agent emits `ERROR` outside the above | Stop, show error (not a DFA event — this is a bug in the agent call, not a pipeline outcome) |
+| Agent output malformed/self-contradictory but not a literal `ERROR`, plausibly traceable to ambiguous/contradictory wording in its own `.md` | Handle the immediate situation as today (unchanged) — additionally invoke `healer` (`trigger=bad_directive`, `context={agent_name, agent_md_path, handoff, raw_output}`) per `## Self-Healing` |
+| User expresses dissatisfaction (rejects the PR, asks for a redo, explicit quality complaint) — mid-pipeline or after `done`/`failed` | Does not change `issues.status` or resume/re-run anything by itself — invoke `healer` (`trigger=user_dissatisfaction`, `context={complaint_text, reviewer_report, pr_url, recent_work_rows}`) per `## Self-Healing`; separately, address the user's actual request (redo/fix) through the normal resumption path if they want the work itself redone |
+
+## Self-Healing
+
+`start` (and, for `user_dissatisfaction`, whichever agent is operating the conversation) invokes the `healer` agent (`automake/agents/healer.md`) out-of-band on five triggers. `healer` is **not** a topology state: it fires no `issue transition`, is never a declared agent for any state, and its invocation never replaces or delays the existing stop-and-show-user behavior above — it runs *in addition to* that behavior, not instead of it, and every existing happy-path step is otherwise unchanged.
+
+**Triggers**:
+
+| Trigger | Fires when | `issue_id` |
+|---|---|---|
+| `cli_error` | `issue transition`/`work start`/`work finish` exits nonzero | current issue, or `null` if the failing call was `issue create` itself |
+| `missing_env_var` | `CLAUDE_PLUGIN_ROOT` (or another orchestrator-required var) is unset/empty in the setup block | `null` (no issue exists yet) |
+| `redundant_build` | the setup block reports `built` (not `already built`) and `check_redundant_build` finds a prior successful build already recorded for the same binary path (see the setup block's `.build_marker` above) | current issue, or `null` before one exists |
+| `bad_directive` | an agent's output is malformed/self-contradictory in a way plausibly traceable to ambiguous wording in its own `.md`, not already covered by an `ERROR`/DFA-event row above | current issue |
+| `user_dissatisfaction` | the user rejects the PR, asks for a redo, or otherwise explicitly complains about quality — as distinct from a plain "also add X" follow-up, which is scope expansion, not dissatisfaction, and must never trigger `healer` | current issue, or the last known issue if the pipeline already finished |
+
+**Invocation contract**:
+
+Write `<pipeline_dir>/handoff_healer.json` (or, before a `pipeline_dir` exists, a path under the plugin cache):
+```json
+{
+  "trigger": "<one of the above>",
+  "issue_id": <int or null>,
+  "repo_root": "<repo_root>",
+  "plugin_root": "$CLAUDE_PLUGIN_ROOT",
+  "context": { "...": "trigger-specific — see automake/agents/healer.md" },
+  "evidence_files": ["<paths healer should Read first>"],
+  "report_path": "<only when issue_id is null>"
+}
+```
+
+- **`issue_id` non-null** — bracket the call like every other agent: `work start --id <issue_id> --agent healer --repo <repo_root> --branch <branch_name> --worktree <worktree_path> --context <handoff path>`, then call `healer`, then `work finish --output <report>`. **Never fire `issue transition` around it** — `healer` is deliberately absent from every state's `agents` list in the topology, so these `work` rows never count toward any round/retry limit.
+- **`issue_id` null** — skip the `work start`/`work finish` pair entirely (there is no issue yet). `healer` writes its report to `report_path` instead, and the orchestrator shows that report to the user directly, alongside whatever stop message is already firing.
+- Every invocation is non-blocking with respect to pipeline control flow: `healer` never changes `issues.status`, never re-routes the current step, and never itself pauses a step that wasn't already stopping for its own existing reason (`cli_error`/`missing_env_var` already stop the pipeline today — `healer` runs in addition to that stop, not as its cause; `redundant_build`/`bad_directive`/`user_dissatisfaction` never stopped the pipeline before and still don't).
+
+See `automake/agents/healer.md` for the full diagnosis/fix/escalate contract and its `FIXED`/`PROPOSED`/`ESCALATE`/`NO_ACTION` output format.
 
 ## Rules
 
@@ -380,3 +456,4 @@ git worktree remove --force <worktree_path>
 - Always run coder and test-writer in parallel (step 2)
 - Show progress after each major step
 - Every `issue transition` call must be preceded by the `work start`/`work finish` pair for the agent whose output produced the event — the CLI's round-limit derivation depends on that history existing
+- Rate-limit `healer`: at most one invocation per (`trigger`, `issue_id`-or-`null`) combination per orchestrator run. Before invoking, check for a marker file under `pipeline_dir` (e.g. `<pipeline_dir>/.healer_invoked_<trigger>_<issue_id-or-null>`; before a `pipeline_dir` exists, fall back to a path under the plugin cache) — if it already exists this run, skip the invocation. Write the marker immediately after invoking, whether `healer`'s report is `FIXED`, `PROPOSED`, `ESCALATE`, or `NO_ACTION`. This exists to stop a `healer` fix that doesn't stick from causing a retrigger loop within the same run — it is not a cross-run dedup (that's `healer`'s own job, per its Steps, via `work list`/prior `healer_report.md`)

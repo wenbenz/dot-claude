@@ -34,7 +34,7 @@ TESTHOME=$(mktemp -d) && HOME="$TESTHOME" claude plugin marketplace add . \
   && rm -rf "$TESTHOME"
 ```
 
-Expect `automake` → 3 skills, 8 agents; `claudetools` → 5 skills, 0 agents.
+Expect `automake` → 3 skills, 9 agents; `claudetools` → 5 skills, 0 agents.
 
 ## After a rename
 
