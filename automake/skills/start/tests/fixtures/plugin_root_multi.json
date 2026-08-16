@@ -1,0 +1,16 @@
+{
+  "plugins": {
+    "automake@ben9": [
+      {
+        "scope": "user",
+        "installPath": "/home/user/.claude/plugins/cache/automake-ben9-user-scope",
+        "version": "1.0.0"
+      },
+      {
+        "scope": "project",
+        "installPath": "/home/user/.claude/plugins/cache/automake-ben9-project-scope",
+        "version": "1.0.0"
+      }
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "plugins": {
+    "automake@ben9": [
+      {
+        "scope": "user",
