@@ -87,7 +87,7 @@ else
   else
     REDUNDANT_BUILD=0
   fi
-  if go build -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" -o "$BINARY" .; then
+  if GOBIN="$CLAUDE_PLUGIN_ROOT/cli/automake-db" go install -C "$CLAUDE_PLUGIN_ROOT/cli/automake-db" .; then
     echo "automake-db: built"
     record_build_marker "$MARKER" "$BINARY"
     if [ "$REDUNDANT_BUILD" = "1" ]; then
@@ -161,7 +161,7 @@ Every state change and every agent invocation goes through the `automake-db` bin
 "$CLAUDE_PLUGIN_ROOT/cli/automake-db/automake-db" <args>
 ```
 
-The setup block at the top of this skill builds that binary before anything else runs, but only if it isn't already there — the pipeline makes ~15 calls per run, and re-invoking `go build` on every single one costs about 2.5s a call for no benefit. A plugin update lands in a new cache directory (its path is content-addressed), so there's no stale-binary case to worry about: a rebuild only happens the first time a given checkout runs. If the build fails, **stop and show the user** — every step below depends on it. Do not fall back to `go run`.
+The setup block at the top of this skill builds that binary before anything else runs, but only if it isn't already there — the pipeline makes ~15 calls per run, and re-invoking `go install` on every single one costs about 2.5s a call for no benefit. A plugin update lands in a new cache directory (its path is content-addressed), so there's no stale-binary case to worry about: a rebuild only happens the first time a given checkout runs. If the build fails, **stop and show the user** — every step below depends on it. Do not fall back to `go run`.
 
 It is the only thing that writes `issues.status` — never update pipeline progress by editing files or by reasoning about it in prose. See `automake/README.md` for the full command reference. The commands used below:
 
