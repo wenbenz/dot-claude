@@ -69,6 +69,8 @@ Reasoning: one or two sentences. If SKIP_TESTS, name the equivalent verification
 
 2. **Check for existing code** — use Glob/Grep to scan the repo for relevant modules, patterns, and conventions. Use this context to avoid re-inventing what already exists.
 
+   For infrastructure/deployment tasks (Helm charts, Terraform modules, and similar), also check whether the target software publishes an official or widely-adopted chart/module before designing one from scratch. Record the decision in the Architecture section either way: use/wrap the existing one, or hand-roll because none exists, none are officially maintained, or none fit this repo's established conventions (secrets, ingress, DB, etc.) — don't silently assume nothing exists and don't silently assume an existing one is the right call either.
+
 3. **Extract requirements** — for each functional requirement:
    - Assign a unique ID: `REQ-001`, `REQ-002`, …
    - Write as a single testable statement
