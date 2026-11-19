@@ -14,26 +14,34 @@ Orchestrate the full pipeline from technical specification to merged pull reques
 # infer_plugin_root JSON_PATH PLUGIN_KEY
 # Given installed_plugins.json's path and a "<plugin>@<marketplace>" key, prints
 # that key's first installPath to stdout and returns 0, or prints nothing and
-# returns 1 on any failure (file missing/unreadable, no matching key, or
-# malformed/truncated JSON with no extractable installPath after the key).
+# returns nonzero (see return codes below).
 # Pure: never reads $HOME/$CLAUDE_PLUGIN_ROOT itself, only its arguments — takes
 # no dependency on ambient state so it stays independently testable.
 # Relies on installed_plugins.json being one-field-per-line (as Claude Code
 # itself writes it) — no jq/python3, awk/sed/grep only.
+# NOTE: never write a dollar sign followed directly by a digit anywhere in this
+# block. Claude Code replaces each such placeholder with the matching skill
+# argument (0-based) before the shell runs, so a positional parameter or an awk
+# field reference would get the user's words instead. Use the braced shell form
+# and the parenthesised awk form; shell and awk treat both the same.
+# Return codes: 0 found (prints path), 1 no matching key/installPath,
+# 2 file missing/unreadable, 3 awk itself failed (its stderr goes to stderr).
 infer_plugin_root() {
-  json_path="$1"
-  plugin_key="$2"
-  [ -r "$json_path" ] || return 1
-  result=$(awk -v key="\"$plugin_key\"" '
-    index($0, key) { found=1; next }
-    found && match($0, /"installPath"[[:space:]]*:[[:space:]]*"[^"]*"/) {
-      val = substr($0, RSTART, RLENGTH)
+  json_path="${1}"
+  plugin_key="${2}"
+  [ -n "$json_path" ] && [ -r "$json_path" ] || return 2
+  if ! result=$(awk -v key="\"$plugin_key\"" '
+    index($(0), key) { found=1; next }
+    found && match($(0), /"installPath"[[:space:]]*:[[:space:]]*"[^"]*"/) {
+      val = substr($(0), RSTART, RLENGTH)
       sub(/^"installPath"[[:space:]]*:[[:space:]]*"/, "", val)
       sub(/"$/, "", val)
       print val
       exit
     }
-  ' "$json_path" 2>/dev/null)
+  ' "$json_path"); then
+    return 3
+  fi
   [ -n "$result" ] || return 1
   printf '%s\n' "$result"
   return 0
@@ -41,16 +49,25 @@ infer_plugin_root() {
 
 INSTALLED_PLUGINS_JSON="$HOME/.claude/plugins/installed_plugins.json"
 PLUGIN_KEY="automake@ben9"
+INFER_RC=skipped
 
 if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  if INFERRED_PLUGIN_ROOT=$(infer_plugin_root "$INSTALLED_PLUGINS_JSON" "$PLUGIN_KEY"); then
+  INFERRED_PLUGIN_ROOT=$(infer_plugin_root "$INSTALLED_PLUGINS_JSON" "$PLUGIN_KEY")
+  INFER_RC=$?
+  if [ "$INFER_RC" -eq 0 ]; then
     export CLAUDE_PLUGIN_ROOT="$INFERRED_PLUGIN_ROOT"
     echo "automake-db: inferred \$CLAUDE_PLUGIN_ROOT -> $CLAUDE_PLUGIN_ROOT (from $INSTALLED_PLUGINS_JSON)"
   fi
 fi
 
 if [ -z "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty, and inference from $INSTALLED_PLUGINS_JSON also failed (file missing/unreadable, or no \"$PLUGIN_KEY\" entry with an installPath) — stop and show this to the user, and invoke healer (trigger=missing_env_var, issue_id=null, context={var_name: CLAUDE_PLUGIN_ROOT, installed_plugins_json: $INSTALLED_PLUGINS_JSON, plugin_key: $PLUGIN_KEY}) per ## Self-Healing"
+  case "$INFER_RC" in
+    1) INFER_WHY="file is readable but has no \"$PLUGIN_KEY\" entry with an installPath" ;;
+    2) INFER_WHY="file missing or unreadable from this shell (sandbox/permissions? [ -r ] failed)" ;;
+    3) INFER_WHY="awk exited nonzero (see its stderr above; awk=$(command -v awk || echo none))" ;;
+    *) INFER_WHY="unexpected infer_plugin_root exit code $INFER_RC" ;;
+  esac
+  echo "automake-db: BUILD FAILED — \$CLAUDE_PLUGIN_ROOT is unset/empty, and inference from $INSTALLED_PLUGINS_JSON also failed: $INFER_WHY (rc=$INFER_RC) — stop and show this to the user, and invoke healer (trigger=missing_env_var, issue_id=null, context={var_name: CLAUDE_PLUGIN_ROOT, installed_plugins_json: $INSTALLED_PLUGINS_JSON, plugin_key: $PLUGIN_KEY, infer_rc: $INFER_RC}) per ## Self-Healing"
 elif ! command -v make >/dev/null 2>&1; then
   echo "automake-db: BUILD FAILED — make not found on \$PATH — stop and show this to the user"
 elif ! command -v go >/dev/null 2>&1; then

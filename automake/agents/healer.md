@@ -18,7 +18,7 @@ Diagnose one reported friction condition and either apply a low-risk fix, propos
 - `plugin_root` — `$CLAUDE_PLUGIN_ROOT` value seen by the caller
 - `context` — trigger-specific object:
   - `cli_error`: `{cmd, stderr, exit_code, state}`
-  - `missing_env_var`: `{var_name, installed_plugins_json, plugin_key}` — `installed_plugins_json` is the path the setup block already tried to infer `var_name` from, `plugin_key` is the `"<plugin>@<marketplace>"` key it looked up; this trigger only fires after that inline inference already failed
+  - `missing_env_var`: `{var_name, installed_plugins_json, plugin_key, infer_rc}` — `infer_rc` is the inference exit code (1 no matching entry, 2 file missing/unreadable, 3 awk failed); `installed_plugins_json` is the path the setup block already tried to infer `var_name` from, `plugin_key` is the `"<plugin>@<marketplace>"` key it looked up; this trigger only fires after that inline inference already failed
   - `bad_directive`: `{agent_name, agent_md_path, handoff, raw_output}`
   - `user_dissatisfaction`: `{complaint_text, reviewer_report, pr_url, recent_work_rows}`
 - `evidence_files` — seed list of paths to `Read` first (e.g. the relevant `SKILL.md`, an agent `.md`, `topology.default.json`)
